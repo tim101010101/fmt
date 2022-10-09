@@ -1,2 +1,6 @@
 /target
 /local_demo
+
+# editor
+.vscode
+.idea
