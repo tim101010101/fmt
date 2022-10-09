@@ -2,10 +2,12 @@ fn main() {
     println!("Hello, world!");
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod test {
-  use super::*;
 
-  // TODO
-
+    // TODO
+    #[test]
+    fn it_work() {
+        assert_eq!(1 + 1, 2)
+    }
 }
