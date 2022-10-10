@@ -1,13 +1,6 @@
+mod data_structure;
+use data_structure::bst::BST;
+
 fn main() {
-    println!("Hello, world!");
-}
-
-#[cfg(test)]
-mod test {
-
-    // TODO
-    #[test]
-    fn it_work() {
-        assert_eq!(1 + 1, 2)
-    }
+    let _b = BST::<u32, char>::new();
 }
