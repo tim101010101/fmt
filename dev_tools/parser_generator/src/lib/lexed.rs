@@ -6,7 +6,6 @@ use regex::Regex;
 
 pub struct NFA {
     code: String,
-    lexical_stream: Vec<String>,
     token_stream: Vec<(TokenKind, String)>,
 }
 
@@ -14,7 +13,6 @@ impl NFA {
     pub fn new(code: String) -> Self {
         NFA {
             code,
-            lexical_stream: Vec::new(),
             token_stream: Vec::new(),
         }
     }
@@ -35,7 +33,6 @@ impl NFA {
         let mut state = 1;
         let mut prev_state = 0;
         let mut text_cache = String::new();
-        let mut lexical_stream: Vec<String> = Vec::new();
         while let Some(c) = self.code.chars().nth(idx) {
             if is_operator(c) {
                 state = state_table[state].0;
@@ -52,7 +49,7 @@ impl NFA {
             }
 
             if prev_state == 2 || end_state.contains(&prev_state) && state != prev_state {
-                lexical_stream.push(text_cache.clone());
+                self.push_token(&text_cache);
                 text_cache.clear();
                 text_cache.push_str(&c.to_string());
             } else {
@@ -62,30 +59,25 @@ impl NFA {
             idx += 1;
             prev_state = state;
         }
-        lexical_stream.push(text_cache.clone());
-
-        self.lexical_stream = lexical_stream;
+        self.push_token(&text_cache);
     }
 
-    pub fn tokenize(&mut self) {
-        for s in self.lexical_stream.iter() {
-            let text = s.to_string();
-            let token = if let Some(token_kind) = TokenKind::from_str(s) {
-                (token_kind, text)
-            } else if let Some(token_kind) = TokenKind::from_keyword(s) {
-                (token_kind, text)
+    fn push_token(&mut self, text: &str) {
+        let text = text.to_string();
+        let token = if let Some(token_kind) = TokenKind::from_str(&text) {
+            (token_kind, text)
+        } else if let Some(token_kind) = TokenKind::from_keyword(&text) {
+            (token_kind, text)
+        } else {
+            if is_blank_from_str(&text) {
+                (WHITE_SPACE, text)
+            } else if is_number(&text) {
+                (NUMBER, text)
             } else {
-                if is_blank_from_str(s) {
-                    (WHITE_SPACE, text)
-                } else if is_number(s) {
-                    (NUMBER, text)
-                } else {
-                    (ID, text)
-                }
-            };
-
-            self.token_stream.push(token);
-        }
+                (ID, text)
+            }
+        };
+        self.token_stream.push(token);
     }
 }
 
@@ -127,19 +119,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_macro() {
-        // assert_eq!(SEMI, T![;]);
-        // assert_eq!(COMMA, T![,]);
-    }
-
-    #[test]
     fn text_nfa() {
         let code = "const      a = 1+ 2;".to_string();
         let mut nfa = NFA::new(code);
         nfa.lexed();
         assert_eq!(
-            vec!["const", "      ", "a", " ", "=", " ", "1", "+", " ", "2", ";"],
-            nfa.lexical_stream
+            vec![
+                (CONST, "const".to_string()),
+                (WHITE_SPACE, "      ".to_string()),
+                (ID, "a".to_string()),
+                (WHITE_SPACE, " ".to_string()),
+                (EQ, "=".to_string()),
+                (WHITE_SPACE, " ".to_string()),
+                (NUMBER, "1".to_string()),
+                (PLUS, "+".to_string()),
+                (WHITE_SPACE, " ".to_string()),
+                (NUMBER, "2".to_string()),
+                (SEMI, ";".to_string())
+            ],
+            nfa.token_stream
         )
     }
 
@@ -148,7 +146,16 @@ mod tests {
         let code = "a+=2;".to_string();
         let mut nfa = NFA::new(code);
         nfa.lexed();
-        assert_eq!(vec!["a", "+", "=", "2", ";"], nfa.lexical_stream);
+        assert_eq!(
+            vec![
+                (ID, "a".to_string()),
+                (PLUS, "+".to_string()),
+                (EQ, "=".to_string()),
+                (NUMBER, "2".to_string()),
+                (SEMI, ";".to_string())
+            ],
+            nfa.token_stream
+        )
     }
 
     #[test]
@@ -160,10 +167,28 @@ mod tests {
         nfa.lexed();
         assert_eq!(
             vec![
-                "const", " ", "a", "=", "1", "+", "2", ";", "var", " ", "b", "=", "(", "3", "+",
-                "2", ")", "*", "3", ";",
+                (CONST, "const".to_string()),
+                (WHITE_SPACE, " ".to_string()),
+                (ID, "a".to_string()),
+                (EQ, "=".to_string()),
+                (NUMBER, "1".to_string()),
+                (PLUS, "+".to_string()),
+                (NUMBER, "2".to_string()),
+                (SEMI, ";".to_string()),
+                (VAR, "var".to_string()),
+                (WHITE_SPACE, " ".to_string()),
+                (ID, "b".to_string()),
+                (EQ, "=".to_string()),
+                (OPEN_PAREN, "(".to_string()),
+                (NUMBER, "3".to_string()),
+                (PLUS, "+".to_string()),
+                (NUMBER, "2".to_string()),
+                (CLOSE_PAREN, ")".to_string()),
+                (STAR, "*".to_string()),
+                (NUMBER, "3".to_string()),
+                (SEMI, ";".to_string())
             ],
-            nfa.lexical_stream
+            nfa.token_stream
         )
     }
 
@@ -172,7 +197,6 @@ mod tests {
         let code = "const   a  = 1 += 2;".to_string();
         let mut nfa = NFA::new(code);
         nfa.lexed();
-        nfa.tokenize();
         assert_eq!(
             vec![
                 (CONST, "const".to_string()),

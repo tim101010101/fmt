@@ -1,0 +1,26 @@
+Program -> Statement
+
+Statement -> BlockStatement | IfStatement | ReturnStatement | Declaration | Expression
+
+BlockStatement -> { Statement }
+
+IfStatement -> if ( ExpressionStatement ) { Statement }
+
+ReturnStatement -> return Expression | null
+
+Declaration -> FunctionDeclaration | VariableDeclaration
+
+FunctionDeclaration -> function ID ( SequenceExpress ) { Statement }
+
+VariableDecalration -> var | let | const ID [= Expression | null] ?
+
+Expression -> AssignmentExpression | SequenceExpression | UnaryExpression | BinaryExpression | BracketExpression
+
+AssignmentExpression -> Expression = Expression
+
+SequenceExpression -> ID, [SequenceExpression]
+
+UnaryExpression -> - | + | ! | ~ | typeof | void | delete Expression
+
+BinaryExpression -> Expression
+== | != | === | !== | < | <= | > | >= | << | >> | >>> | + | - | * | / | % | | | ^ | & | in | instanceof Expression
