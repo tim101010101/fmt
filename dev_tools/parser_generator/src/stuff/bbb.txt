@@ -1,0 +1,82 @@
+[Grammar.Js]
+
+program: (Statement | NewLine)*;
+
+NewLine: [Other.NEW_LINE];
+
+Statement: BlockStatement
+         | IfStatement
+         | ReturnStatement
+         | Declaration
+         | Expression
+         ([Operator.SEMI])?
+         ;
+
+BlockStatement: [Operator.OPEN_PAREN] Statement [Operator.CLOSE_PAREN];
+
+IfStatement: [Keyword.IF] [Operator.OPEN_PAREN] Expression [Operator.CLOSE_PAREN] [Operator.OPEN_BRACE] Statement [Operator.CLOSE_BRACE];
+
+ReturnStatement: [Keyword.RETURN] (Expression)?;
+
+Declaration: FunctionDecalration | VariableDeclaration;
+
+FunctionDeclaration: [Keyword.FUNCTION] [Literal.ID] [Operator.OPEN_PAREN] SequenceExpress [Operator.CLOSE_PAREN] [Operator.OPEN_BRACE] Statement [Operator.CLISE_BRACE];
+
+VariableDeclaration: [Keyword.VAR]
+                   | [Keyword.LET]
+                   | [Keyword.CONST]
+                   [Literal.ID]
+                   ([Operator.EQ] Expression)?
+                   ;
+
+Expression: AssignmentExpression
+          | SequenceExpression
+          | UnaryExpression
+          | BinaryExpression
+          | BracketExpression
+          | ImportExpression
+          | ExportExpression
+          ;
+
+AssignmentExpression: Expression [Operator.EQ] Expression;
+
+SequenceExpression: [Literal.ID] ([Operator.COMMA] SequenceExpression)?;
+
+UnaryExpression: [Operator.MINUS]
+               | [Operator.PLUS]
+               | [Operator.BANG]
+               | [Operator.TILDE]
+               | [Keyword.TYPE_OF]
+               | [Keyword.VOID]
+               | [Keyword.DELETE]
+               Expression
+               ;
+
+BinaryExpression: Expression
+                  [Operator.EQ & Operator.EQ]
+                | [Operator.BANG & Operator.EQ]
+                | [Operator.EQ & Operator.EQ & Operator.EQ]
+                | [Operator.BANG & Operator.EQ & Operator.EQ]
+                | [Operator.LT]
+                | [Operator.LT & Operator.EQ]
+                | [Operator.GT]
+                | [Operator.GT & Operator.EQ]
+                | [Operator.LT & Operator.LT]
+                | [Operator.GT & Operator.GT]
+                | [Operator.GT & Operator.GT & Operator.GT]
+                | [Operator.PLUS]
+                | [Operator.MINUS]
+                | [Operator.STAR]
+                | [Operator.SLASH]
+                | [Operator.PERCENT]
+                | [Operator.OR]
+                | [Operator.CARET]
+                | [Operator.AND]
+                | [Keyword.IN]
+                | [Keyword.INSTANCE_OF]
+                Expression
+                ;
+
+ImportExpression: DefaultImportExpression | NamedImportExpression;
+
+DefaultImportExpression: [Keyword.IMPORT] [Keyword.DEFAULT]

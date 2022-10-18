@@ -17,11 +17,12 @@ BANG = "!"
 LT = "<"
 GT = ">"
 MINUS = "-"
+TILDE = "~"
 AND = "&"
 OR = "|"
 PLUS = "+"
 STAR = "*"
-SLASH = "\/"
+SLASH = "/"
 CARET = "^"
 PERCENT = "%"
 
@@ -50,8 +51,13 @@ STATIC = "static"
 CLASS = "class"
 SUPER = "super"
 YIELD = "yield"
+TYPE_OF = "typeof"
+VOID = "void"
+DELETE = "delete"
+INSTANCE_OF = "instanceof"
+IN = "in"
+TYPE = "type"
 
 [[Other]]
-WHITE_SPACE = /\n|\t|\r/,
-
-[Grammar]
+WHITE_SPACE = /\n|\t|\r/
+NEW_LINE = /\r\n/

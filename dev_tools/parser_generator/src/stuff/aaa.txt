@@ -24,3 +24,5 @@ UnaryExpression -> - | + | ! | ~ | typeof | void | delete Expression
 
 BinaryExpression -> Expression
 == | != | === | !== | < | <= | > | >= | << | >> | >>> | + | - | * | / | % | | | ^ | & | in | instanceof Expression
+
+- | + | ! | ~  + Expression
