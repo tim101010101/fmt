@@ -11,10 +11,16 @@ pub fn is_blank(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[test]
     fn test_is_number() {
         assert!(is_number("1"));
         assert!(!is_number("h"));
+    }
+
+    #[test]
+    fn test_test() {
+        println!("{}", env::current_dir().unwrap().display())
     }
 }
