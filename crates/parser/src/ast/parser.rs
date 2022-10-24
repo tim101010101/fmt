@@ -13,7 +13,6 @@ enum ParseResult {
 pub struct Parser {
     token_stream: TokenStream,
     builder: Builder,
-    cur: usize,
     errors: Vec<String>,
 }
 
@@ -22,7 +21,6 @@ impl Parser {
         Parser {
             token_stream: TokenStream::new(tokens),
             builder: Builder::new(),
-            cur: 0,
             errors: Vec::new(),
         }
     }
@@ -84,7 +82,6 @@ impl Parser {
 
         ParseResult::Ok
     }
-    fn parse_single(&mut self) {}
     fn parse_list(&mut self) {
         self.builder.start_node(LIST);
         self.bump();
