@@ -1,17 +1,17 @@
 use std::fs::{remove_file, OpenOptions};
-use std::io::{Error, ErrorKind, Read, Write};
+use std::io::{Error, Read, Write};
+use std::path::Path;
 
-pub fn exist(path: &str) -> Result<bool, Error> {
-    if let Err(err) = OpenOptions::new().read(true).open(path) {
-        match err.kind() {
-            ErrorKind::AlreadyExists => Ok(true),
-            ErrorKind::NotFound => Ok(false),
-            ErrorKind::InvalidInput => Ok(false),
-            _ => Err(err),
-        }
-    } else {
-        Ok(true)
-    }
+pub fn file_exists(path: &str) -> bool {
+    let p = Path::new(path);
+    p.is_file() && p.exists()
+}
+
+pub fn dir_exists(path: &str) -> bool {
+    let p = Path::new(path);
+    let dir_name = p.file_name().unwrap();
+    let expect_dir_name = path.split("/").last().unwrap();
+    p.is_dir() && p.exists() && dir_name == expect_dir_name
 }
 
 pub fn write_file(path: &str, content: &str) -> Result<(), Error> {
@@ -35,7 +35,7 @@ pub fn delete_file(path: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use crate::path;
-    use crate::utils::io::{delete_file, exist};
+    use crate::utils::io::{delete_file, dir_exists, file_exists};
     use crate::utils::{read_file, write_file};
 
     fn get_path() -> String {
@@ -44,37 +44,21 @@ mod tests {
 
     #[test]
     fn test_exsit() {
-        let valid_path = path!("src/tests/hello.txt");
-        let invalid_path = path!("src/tests/not_exsit_file.fff");
-        assert_eq!(exist(&valid_path).unwrap(), true);
-        assert_eq!(exist(&invalid_path).unwrap(), false);
+        let valid_file_path = path!("src/tests/hello.txt");
+        let invalid_file_path = path!("src/tests/not_exsit_file.fff");
+        assert!(file_exists(&valid_file_path));
+        assert!(!file_exists(&invalid_file_path));
+
+        let valid_dir_path = path!("src/tests");
+        let invalid_dir_path = path!("src/tests/hello");
+        assert!(dir_exists(&valid_dir_path));
+        assert!(!dir_exists(&invalid_dir_path));
     }
-    //
-    // #[test]
-    // fn test_delete_file() {
-    //     let p = get_path();
-    //     if let Ok(false) = exist(&p) {
-    //         let content = "Hello World";
-    //         write_file(&p, content).unwrap()
-    //     }
-    //     delete_file(&p).unwrap();
-    // }
-    //
-    // #[test]
-    // fn test_write_and_read() {
-    //     let p = get_path();
-    //     let content = "Hello World";
-    //     write_file(&p, content).unwrap();
-    //     if let Ok(text) = read_file(&p) {
-    //         assert_eq!(text, content);
-    //     }
-    //     delete_file(&p).unwrap();
-    // }
 
     #[test]
-    fn smoke() {
+    fn smoke_test() {
         let p = get_path();
-        if let Ok(true) = exist(&p) {
+        if file_exists(&p) {
             delete_file(&p).unwrap();
         }
 
