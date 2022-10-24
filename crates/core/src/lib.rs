@@ -1,3 +1,8 @@
+mod codegen;
+mod deps_inject;
+mod error_capture;
+mod get_config;
+
 #[cfg(test)]
 mod tests {
     #[test]
