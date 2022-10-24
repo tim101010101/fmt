@@ -1,14 +1,14 @@
 use crate::ast::{Node, Parser};
-use crate::lex::{Token, NFA};
+use crate::lex::{Token, DFA};
 
 mod ast;
 mod lex;
 mod syntax_kind;
 
 pub fn lex(code: &str) -> Vec<Token> {
-    let mut nfa = NFA::new(code.to_string());
-    nfa.lexed(false);
-    nfa.token_stream
+    let mut dfa = DFA::new(code.to_string());
+    dfa.lexed(false);
+    dfa.token_stream
 }
 
 pub fn syntax(token_stream: Vec<Token>) -> Option<Node> {
@@ -20,9 +20,15 @@ mod tests {
     use crate::{lex, syntax};
 
     fn get_source_code() -> String {
-        "function foo () {\
-            const bar = \"baz\";\
-        }"
+        r#"function foo () {
+            const bar = "baz";
+        }
+        
+        var bar = "foo"
+        
+        function bar(foo, bar, a, b) {
+            let a = 1;
+        }"#
         .to_string()
     }
 
@@ -32,6 +38,5 @@ mod tests {
         let token_stream = lex(&source);
         let ast = syntax(token_stream).unwrap();
         println!("{}", ast);
-        // function foo () {const bar = "baz";}
     }
 }
