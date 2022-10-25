@@ -130,7 +130,7 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::node::Node;
+    use crate::ast::node::{dump_all, Node};
     use crate::ast::parser::Parser;
     use crate::lex::Token;
     use crate::syntax_kind::*;
@@ -180,100 +180,51 @@ mod tests {
             (CLOSE_BRACE, "}".to_string()),
         ]
     }
+    fn get_invalid_function_declaration_token_stream() -> Vec<Token> {
+        vec![
+            (FUNCTION_KW, "function".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (OPEN_BRACE, "{".to_string()),
+            (DEFINATOR, "const".to_string()),
+            (ID, "foo".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "1".to_string()),
+            (SEMI, ";".to_string()),
+            (CLOSE_BRACE, "}".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ]
+    }
     fn parser_stub(tokens: Vec<Token>) -> Node {
         Parser::new(tokens).parse().unwrap()
     }
 
     #[test]
     fn test_parse_line() {
-        println!("{}", parser_stub(get_line_token_stream()));
+        assert_eq!(
+            "const foo = 1;",
+            parser_stub(get_line_token_stream()).to_string()
+        )
     }
 
     #[test]
     fn test_parse_block() {
-        println!("{}", parser_stub(get_block_token_stream()));
+        assert_eq!(
+            "{const foo = 1;}",
+            parser_stub(get_block_token_stream()).to_string()
+        )
     }
 
     #[test]
     fn test_parse_function_declaration() {
-        // println!("{:?}", parser_stub(get_function_declaration_token_stream()));
-        println!("{}", parser_stub(get_function_declaration_token_stream()));
+        assert_eq!(
+            "function () {const foo = 1;}",
+            parser_stub(get_function_declaration_token_stream()).to_string()
+        )
     }
 
-    fn tttt() {
-        // NodeData {
-        //     kind: SyntaxKind(0),
-        //     len: 16,
-        //     children: [Node(NodeData {
-        //         kind: SyntaxKind(4),
-        //         len: 16,
-        //         children: [Node(NodeData {
-        //             kind: SyntaxKind(4),
-        //             len: 16,
-        //             children: [
-        //                 Token(TokenData {
-        //                     kind: SyntaxKind(10010),
-        //                     text: "{",
-        //                 }),
-        //                 Node(NodeData {
-        //                     kind: SyntaxKind(4),
-        //                     len: 5,
-        //                     children: [Token(TokenData {
-        //                         kind: SyntaxKind(10002),
-        //                         text: "const",
-        //                     })],
-        //                 }),
-        //                 Token(TokenData {
-        //                     kind: SyntaxKind(10001),
-        //                     text: " ",
-        //                 }),
-        //                 Node(NodeData {
-        //                     kind: SyntaxKind(4),
-        //                     len: 3,
-        //                     children: [Token(TokenData {
-        //                         kind: SyntaxKind(10003),
-        //                         text: "foo",
-        //                     })],
-        //                 }),
-        //                 Token(TokenData {
-        //                     kind: SyntaxKind(10001),
-        //                     text: " ",
-        //                 }),
-        //                 Node(NodeData {
-        //                     kind: SyntaxKind(4),
-        //                     len: 1,
-        //                     children: [Token(TokenData {
-        //                         kind: SyntaxKind(10016),
-        //                         text: "=",
-        //                     })],
-        //                 }),
-        //                 Token(TokenData {
-        //                     kind: SyntaxKind(10001),
-        //                     text: " ",
-        //                 }),
-        //                 Node(NodeData {
-        //                     kind: SyntaxKind(4),
-        //                     len: 1,
-        //                     children: [Token(TokenData {
-        //                         kind: SyntaxKind(10004),
-        //                         text: "1",
-        //                     })],
-        //                 }),
-        //                 Node(NodeData {
-        //                     kind: SyntaxKind(4),
-        //                     len: 1,
-        //                     children: [Token(TokenData {
-        //                         kind: SyntaxKind(10017),
-        //                         text: ";",
-        //                     })],
-        //                 }),
-        //                 Token(TokenData {
-        //                     kind: SyntaxKind(10011),
-        //                     text: "}",
-        //                 }),
-        //             ],
-        //         })],
-        //     })],
-        // }
-    }
+    // #[test]
+    // fn test_dump_all() {
+    //     let o = parser_stub(get_line_token_stream());
+    //     println!("{}", dump_all(o.into()))
+    // }
 }
