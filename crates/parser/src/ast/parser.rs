@@ -222,6 +222,16 @@ mod tests {
         )
     }
 
+    #[test]
+    fn test_parse_invalid_function_declaration() {
+        // should panic
+        // function({constfoo=1;})
+        println!(
+            "{}",
+            parser_stub(get_invalid_function_declaration_token_stream())
+        );
+    }
+
     // #[test]
     // fn test_dump_all() {
     //     let o = parser_stub(get_line_token_stream());
