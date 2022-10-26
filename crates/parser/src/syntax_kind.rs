@@ -34,6 +34,7 @@ pub const STAR: SyntaxKind = SyntaxKind(10014);
 pub const SLASH: SyntaxKind = SyntaxKind(10015);
 pub const EQ: SyntaxKind = SyntaxKind(10016);
 pub const SEMI: SyntaxKind = SyntaxKind(10017);
+pub const COMMA: SyntaxKind = SyntaxKind(10018);
 
 pub const FUNCTION_KW: SyntaxKind = SyntaxKind(10050);
 
@@ -63,216 +64,63 @@ impl SyntaxKind {
             "}" => CLOSE_BRACE,
             "+" => PLUS,
             "*" => STAR,
+            "," => COMMA,
             _ => return None,
         };
         Some(op)
     }
+    pub fn to_str(&self) -> &str {
+        match self {
+            &ROOT => "ROOT",
+            &SINGLE => "SINGLE",
+            &LIST => "LIST",
+            &BLOCK => "BLOCK",
+
+            &WHITESPACE => "WHITESPACE",
+
+            &DEFINATOR => "DEFINATOR",
+            &ID => "ID",
+            &NUMBER => "NUMBER",
+            &STRING => "STRING",
+
+            &OPEN_PAREN => "OPEN_PAREN",
+            &CLOSE_PAREN => "CLOSE_PAREN",
+            &OPEN_BRACKET => "OPEN_BRACKET",
+            &CLOSE_BRACKET => "CLOSE_BRACKET",
+            &OPEN_BRACE => "OPEN_BRACE",
+            &CLOSE_BRACE => "CLOSE_BRACE",
+            &PLUS => "PLUS",
+            &MINUS => "MINUS",
+            &STAR => "STAR",
+            &SLASH => "SLASH",
+            &EQ => "EQ",
+            &SEMI => "SEMI",
+            &COMMA => "COMMA",
+
+            &FUNCTION_KW => "FUNCTION_KW",
+
+            _ => return "Unknow",
+        }
+    }
 }
 
-// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-// pub enum NodeKind {
-//     ROOT,
-//     DECLARATION,
-// }
-//
-// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-// pub enum TokenKind {
-//     /* operator */
-//     SEMI,          // ;
-//     COMMA,         // ,
-//     DOT,           // .
-//     OPEN_PAREN,    // (
-//     CLOSE_PAREN,   // )
-//     OPEN_BRACE,    // {
-//     CLOSE_BRACE,   // }
-//     OPEN_BRACKET,  // [
-//     CLOSE_BRACKET, // ]
-//     QUESTION,      // ?
-//     COLON,         // :
-//     DOLLAR,        // $
-//     EQ,            // =
-//     BANG,          // !
-//     LT,            // <
-//     GT,            // >
-//     MINUS,         // -
-//     AND,           // &
-//     OR,            // |
-//     PLUS,          // +
-//     STAR,          // *
-//     SLASH,         // /
-//     CARET,         // ^
-//     PERCENT,       // %
-//
-//     /* literal */
-//     ID,
-//     NUMBER,
-//     STRING,
-//     OBJECT,
-//     ARRAY,
-//     WHITE_SPACE,
-//
-//     /* keyword */
-//     IMPORT,
-//     EXPORT,
-//     DEFAULT,
-//     AS,
-//     ASYNC,
-//     AWAIT,
-//     CONST,
-//     LET,
-//     VAR,
-//     IF,
-//     ELSE,
-//     FOR,
-//     FUNCTION,
-//     STATIC,
-//     CLASS,
-//     SUPER,
-//     YIELD,
-//
-//     /* other */
-//     EOF,
-//     UNKNOW,
-// }
-//
-// use self::TokenKind::*;
-//
-// impl TokenKind {
-//     pub fn is_keyword(self) -> bool {
-//         matches!(
-//             self,
-//             IMPORT
-//                 | EXPORT
-//                 | DEFAULT
-//                 | AS
-//                 | ASYNC
-//                 | AWAIT
-//                 | CONST
-//                 | LET
-//                 | VAR
-//                 | IF
-//                 | ELSE
-//                 | FOR
-//                 | FUNCTION
-//                 | STATIC
-//                 | CLASS
-//                 | SUPER
-//                 | YIELD
-//         )
-//     }
-//
-//     pub fn is_literal(self) -> bool {
-//         matches!(self, NUMBER | STRING | OBJECT | ARRAY)
-//     }
-//
-//     pub fn from_keyword(str: &str) -> Option<TokenKind> {
-//         let token = match str {
-//             "as" => AS,
-//             "async" => ASYNC,
-//             "await" => AWAIT,
-//             "import" => IMPORT,
-//             "export" => EXPORT,
-//             "default" => DEFAULT,
-//             "const" => CONST,
-//             "let" => LET,
-//             "var" => VAR,
-//             "if" => IF,
-//             "else" => ELSE,
-//             "for" => FOR,
-//             "function" => FUNCTION,
-//             "static" => STATIC,
-//             "class" => CLASS,
-//             "super" => SUPER,
-//             "yield" => YIELD,
-//             _ => return None,
-//         };
-//         Some(token)
-//     }
-//
-//     pub fn from_str(s: &str) -> Option<TokenKind> {
-//         let token = match s {
-//             ";" => SEMI,
-//             "," => COMMA,
-//             "(" => OPEN_PAREN,
-//             ")" => CLOSE_PAREN,
-//             "[" => OPEN_BRACKET,
-//             "]" => CLOSE_BRACKET,
-//             "{" => OPEN_BRACE,
-//             "}" => CLOSE_BRACE,
-//             "<" => LT,
-//             ">" => GT,
-//             "?" => QUESTION,
-//             ":" => COLON,
-//             "$" => DOLLAR,
-//             "=" => EQ,
-//             "!" => BANG,
-//             "~" => MINUS,
-//             "&" => AND,
-//             "|" => OR,
-//             "+" => PLUS,
-//             "*" => STAR,
-//             "/" => SLASH,
-//             "^" => CARET,
-//             "%" => PERCENT,
-//             _ => return None,
-//         };
-//         Some(token)
-//     }
-// }
-//
-// #[macro_export]
-// macro_rules! T {
-//     [;] => { $ crate::lex::token_kind::TokenKind::SEMI };
-//     [,] => { $ crate::lex::token_kind::TokenKind::COMMA };
-//     ['('] => { $ crate::lex::token_kind::TokenKind::OPEN_PAREN };
-//     [')'] => { $ crate::lex::token_kind::TokenKind::CLOSE_PAREN };
-//     ['['] => { $ crate::lex::token_kind::TokenKind::OPEN_BRACKET };
-//     [']'] => { $ crate::lex::token_kind::TokenKind::CLOSE_BRACKET };
-//     ['{'] => { $ crate::lex::token_kind::TokenKind::OPEN_BRACE };
-//     ['}'] => { $ crate::lex::token_kind::TokenKind::CLOSE_BRACE };
-//     [<] => { $ crate::lex::token_kind::TokenKind::LT };
-//     [>] => { $ crate::lex::token_kind::TokenKind::GT };
-//     [?] => { $ crate::lex::token_kind::TokenKind::QUESTION };
-//     [:] => { $ crate::lex::token_kind::TokenKind::COLON };
-//     ['$'] => { $ crate::lex::token_kind::TokenKind::DOLLAR };
-//     [=] => { $ crate::lex::token_kind::TokenKind::EQ };
-//     [!] => { $ crate::lex::token_kind::TokenKind::BANG };
-//     [~] => { $ crate::lex::token_kind::TokenKind::MINUS };
-//     [&] => { $ crate::lex::token_kind::TokenKind::AND };
-//     [|] => { $ crate::lex::token_kind::TokenKind::OR };
-//     [+] => { $ crate::lex::token_kind::TokenKind::PLUS };
-//     [*] => { $ crate::lex::token_kind::TokenKind::STAR };
-//     [/] => { $ crate::lex::token_kind::TokenKind::SLASH };
-//     [^] => { $ crate::lex::token_kind::TokenKind::CARET };
-//     [%] => { $ crate::lex::token_kind::TokenKind::PERCENT };
-//
-//     [as] => { $ crate::lex::token_kind::TokenKind::AS };
-//     [async] => { $ crate::lex::token_kind::TokenKind::ASYNC };
-//     [await] => { $ crate::lex::token_kind::TokenKind::AWAIT };
-//     [import] => { $ crate::lex::token_kind::TokenKind::IMPORT };
-//     [export] => { $ crate::lex::token_kind::TokenKind::EXPORT };
-//     [default] => { $ crate::lex::token_kind::TokenKind::DEFAULT };
-//     [const] => { $ crate::lex::token_kind::TokenKind::CONST };
-//     [let] => { $ crate::lex::token_kind::TokenKind::LET };
-//     [var] => { $ crate::lex::token_kind::TokenKind::VAR };
-//     [if] => { $ crate::lex::token_kind::TokenKind::IF };
-//     [else] => { $ crate::lex::token_kind::TokenKind::ELSE };
-//     [for] => { $ crate::lex::token_kind::TokenKind::FOR };
-//     [function] => { $ crate::lex::token_kind::TokenKind::FUNCTION };
-//     [static] => { $ crate::lex::token_kind::TokenKind::STATIC };
-//     [class] => { $ crate::lex::token_kind::TokenKind::CLASS };
-//     [super] => { $ crate::lex::token_kind::TokenKind::SUPER };
-//     [yield] => { $ crate::lex::token_kind::TokenKind::YIELD };
-// }
-//
-// #[cfg(test)]
-// mod tests {
-//     use crate::lex::token_kind::TokenKind::{OPEN_PAREN, SEMI, STATIC};
-//
-//     #[test]
-//     fn test_macro() {
-//         assert_eq!(SEMI, T![;]);
-//         assert_eq!(OPEN_PAREN, T!['(']);
-//         assert_eq!(STATIC, T![static]);
-//     }
-// }
+#[macro_export]
+macro_rules! T {
+    [";"] => { $ crate::syntax_kind::SEMI };
+    [","] => { $ crate::syntax_kind::COMMA };
+    ["("] => { $ crate::syntax_kind::OPEN_PAREN };
+
+    ["function"] => {$crate::syntax_kind::FUNCTION_KW};
+
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::syntax_kind::{FUNCTION_KW, SEMI};
+
+    #[test]
+    fn test_macro() {
+        assert_eq!(T![";"], SEMI);
+        assert_eq!(T!["function"], FUNCTION_KW);
+    }
+}

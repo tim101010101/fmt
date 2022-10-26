@@ -1,36 +1,31 @@
-struct PathResolve<'a> {
-    stack: Vec<&'a str>,
-}
+use regex::Regex;
 
-impl<'a> PathResolve<'a> {
-    fn new() -> Self {
-        PathResolve { stack: Vec::new() }
+pub fn resolve(base: &str, path_list: Vec<&str>) -> String {
+    struct PathCache<'a> {
+        stack: Vec<&'a str>,
     }
-
-    // TODO refactor with regular expression
-    fn join(&mut self, path: &'a str) {
-        if path == ".." || path == "../" {
-            self.stack.pop();
-        } else if path.starts_with("../") {
-            let path = &path[3..];
-            self.stack.pop();
-            self.stack.push(path);
-        } else if path == "." || path == "./" {
-        } else if path.starts_with("./") {
-            let path = &path[2..];
-            self.stack.push(path);
-        } else {
-            self.stack.push(path);
+    impl<'a> PathCache<'a> {
+        fn new() -> Self {
+            PathCache { stack: Vec::new() }
+        }
+        fn join(&mut self, path: &'a str) {
+            let reg = Regex::new(r#"^(\.)?[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$"#).unwrap();
+            path.split("/").for_each(|s| match s {
+                ".." => {
+                    self.stack.pop();
+                }
+                _ if reg.is_match(s) => {
+                    self.stack.push(s);
+                }
+                _ => {}
+            })
+        }
+        fn canonicalize(&self) -> String {
+            format!("/{}", self.stack.join("/"))
         }
     }
 
-    fn canonicalize(&self) -> String {
-        self.stack.join("/")
-    }
-}
-
-pub fn resolve(base: &str, path_list: Vec<&str>) -> String {
-    let mut pr = PathResolve::new();
+    let mut pr = PathCache::new();
     pr.join(base);
     path_list.iter().for_each(|p| pr.join(p));
     pr.canonicalize()
