@@ -1,5 +1,6 @@
 use crate::ast::node::Node;
 use crate::ast::token::Token;
+use crate::syntax_kind::SyntaxKind;
 use std::fmt::{Display, Formatter};
 
 pub type Element = NodeOrToken<Node, Token>;
@@ -11,10 +12,34 @@ pub enum NodeOrToken<N, T> {
 }
 
 impl Element {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Element::Node(n) => n.kind(),
+            Element::Token(t) => t.kind(),
+        }
+    }
+    pub(crate) fn text(&self) -> Option<&str> {
+        match self {
+            Element::Node(_) => None,
+            Element::Token(t) => Some(t.text()),
+        }
+    }
     pub(crate) fn text_len(&self) -> usize {
         match self {
             Element::Node(n) => n.text_len(),
             Element::Token(t) => t.text_len(),
+        }
+    }
+    pub(crate) fn children(&self) -> Option<&[Element]> {
+        match self {
+            Element::Node(n) => {
+                if n.children().len() > 0 {
+                    Some(n.children())
+                } else {
+                    None
+                }
+            }
+            Element::Token(_) => None,
         }
     }
 }
