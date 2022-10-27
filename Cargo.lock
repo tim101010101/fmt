@@ -33,6 +33,7 @@ name = "parser"
 version = "0.1.0"
 dependencies = [
  "regex",
+ "shared",
 ]
 
 [[package]]
