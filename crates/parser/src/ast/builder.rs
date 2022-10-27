@@ -52,13 +52,15 @@ impl Builder {
             cache: Cache::new(),
         }
     }
-    pub(crate) fn token(&mut self, kind: SyntaxKind, text: &str) -> Result<(), ()> {
+    pub(crate) fn token(&mut self, kind: SyntaxKind, text: &str) {
         self.cache
             .cache(Token::new(TokenData::new(kind, text.to_string())).into())
+            .expect(format!("failed to parse {}", text).as_str())
     }
-    fn node(&mut self, kind: SyntaxKind, children: Vec<Element>) -> Result<(), ()> {
+    fn node(&mut self, kind: SyntaxKind, children: Vec<Element>) {
         self.cache
             .cache(Node::new(NodeData::new(kind, children)).into())
+            .expect(format!("failed to parse {:?}", kind).as_str())
     }
     pub(crate) fn start_node(&mut self, kind: SyntaxKind) {
         self.cache.push_ctx(kind);

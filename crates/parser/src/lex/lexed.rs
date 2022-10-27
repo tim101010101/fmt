@@ -4,14 +4,14 @@ use regex::Regex;
 
 pub type Token = (SyntaxKind, String);
 
-pub struct NFA {
+pub struct DFA {
     code: String,
     pub token_stream: Vec<Token>,
 }
 
-impl NFA {
+impl DFA {
     pub fn new(code: String) -> Self {
-        NFA {
+        DFA {
             code,
             token_stream: Vec::new(),
         }
@@ -126,8 +126,8 @@ mod tests {
     #[test]
     fn text_nfa() {
         let code = "const      a = 1+ 2;".to_string();
-        let mut nfa = NFA::new(code);
-        nfa.lexed(false);
+        let mut dfa = DFA::new(code);
+        dfa.lexed(false);
         assert_eq!(
             vec![
                 (DEFINATOR, "const".to_string()),
@@ -142,15 +142,15 @@ mod tests {
                 (NUMBER, "2".to_string()),
                 (SEMI, ";".to_string())
             ],
-            nfa.token_stream
+            dfa.token_stream
         )
     }
 
     #[test]
     fn text_nfa_2() {
         let code = "a+=2;".to_string();
-        let mut nfa = NFA::new(code);
-        nfa.lexed(false);
+        let mut dfa = DFA::new(code);
+        dfa.lexed(false);
         assert_eq!(
             vec![
                 (ID, "a".to_string()),
@@ -159,7 +159,7 @@ mod tests {
                 (NUMBER, "2".to_string()),
                 (SEMI, ";".to_string())
             ],
-            nfa.token_stream
+            dfa.token_stream
         )
     }
 
@@ -168,8 +168,8 @@ mod tests {
         let code = "const a=1+2;\
         var b=(3+2)*3;"
             .to_string();
-        let mut nfa = NFA::new(code);
-        nfa.lexed(true);
+        let mut dfa = DFA::new(code);
+        dfa.lexed(true);
         assert_eq!(
             vec![
                 (DEFINATOR, "const".to_string()),
@@ -191,15 +191,15 @@ mod tests {
                 (NUMBER, "3".to_string()),
                 (SEMI, ";".to_string())
             ],
-            nfa.token_stream
+            dfa.token_stream
         )
     }
 
     #[test]
     fn test_tokenize_1() {
         let code = "const   a  = 1 += 2;".to_string();
-        let mut nfa = NFA::new(code);
-        nfa.lexed(true);
+        let mut dfa = DFA::new(code);
+        dfa.lexed(true);
         assert_eq!(
             vec![
                 (DEFINATOR, "const".to_string()),
@@ -211,15 +211,15 @@ mod tests {
                 (NUMBER, "2".to_string()),
                 (SEMI, ";".to_string())
             ],
-            nfa.token_stream
+            dfa.token_stream
         )
     }
 
     #[test]
     fn test_block_parse() {
         let code = "const a = \"Hello World\";".to_string();
-        let mut nfa = NFA::new(code);
-        nfa.lexed(true);
-        println!("{:?}", nfa.token_stream)
+        let mut dfa = DFA::new(code);
+        dfa.lexed(true);
+        println!("{:?}", dfa.token_stream)
     }
 }

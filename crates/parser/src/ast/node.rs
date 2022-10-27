@@ -1,6 +1,6 @@
 use crate::ast::tree::Element;
 use crate::syntax_kind::SyntaxKind;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 
 #[allow(dead_code)]
@@ -40,4 +40,48 @@ impl Display for NodeData {
         }
         Ok(())
     }
+}
+
+// DEBUG
+pub fn dump_all(ele: Element) -> String {
+    struct Output {
+        res: String,
+        ident: usize,
+    }
+    impl Output {
+        fn new() -> Self {
+            Output {
+                res: String::new(),
+                ident: 0,
+            }
+        }
+        fn join(&mut self, s: &str) {
+            self.res.push_str("  ".repeat(self.ident).as_str());
+            self.res.push_str(s);
+        }
+        fn walk_node(&mut self, n: Element) {
+            self.join(&format!("{}\n", n.kind().to_str()));
+            self.ident += 1;
+            self.join(&format!("len: {}\n", n.text_len()));
+
+            if let Some(text) = n.text() {
+                self.join(&format!("text: \"{}\",\n", text));
+            }
+
+            if let Some(children) = n.children() {
+                self.join("children: \n");
+                self.ident += 1;
+                children
+                    .iter()
+                    .for_each(|child| self.walk_node(child.to_owned()));
+                self.ident -= 1;
+            }
+
+            self.ident -= 1;
+        }
+    }
+
+    let mut o = Output::new();
+    o.walk_node(ele);
+    o.res
 }
