@@ -2,11 +2,11 @@ use crate::lex::type_judgument::{is_blank as is_blank_from_str, is_number, is_st
 use crate::syntax_kind::*;
 use regex::Regex;
 
-pub type Token = (SyntaxKind, String);
+pub type LexedToken = (SyntaxKind, String);
 
 pub struct DFA {
     code: String,
-    pub token_stream: Vec<Token>,
+    pub token_stream: Vec<LexedToken>,
 }
 
 impl DFA {

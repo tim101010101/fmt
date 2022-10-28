@@ -1,5 +1,5 @@
-use crate::ast::node::Node;
-use crate::ast::token::Token;
+use crate::ast::node::{Node, NodeData};
+use crate::ast::token::{Token, TokenData};
 use crate::syntax_kind::SyntaxKind;
 use std::fmt::{Display, Formatter};
 
@@ -59,9 +59,21 @@ impl From<Node> for Element {
     }
 }
 
+impl From<NodeData> for Element {
+    fn from(n: NodeData) -> Self {
+        Self::Node(Node::new(n))
+    }
+}
+
 impl From<Token> for Element {
     fn from(t: Token) -> Self {
         Self::Token(t)
+    }
+}
+
+impl From<TokenData> for Element {
+    fn from(t: TokenData) -> Self {
+        Self::Token(Token::new(t))
     }
 }
 

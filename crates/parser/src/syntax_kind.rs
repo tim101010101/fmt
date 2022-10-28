@@ -9,9 +9,14 @@ pub const ERROR: SyntaxKind = SyntaxKind(1);
 pub const SINGLE: SyntaxKind = SyntaxKind(2);
 pub const LIST: SyntaxKind = SyntaxKind(3);
 pub const BLOCK: SyntaxKind = SyntaxKind(4);
+pub const ATTRIBUTE: SyntaxKind = SyntaxKind(5);
+pub const OBJECT_LITERAL: SyntaxKind = SyntaxKind(6);
 
 pub const UNARY_EXPR: SyntaxKind = SyntaxKind(100);
 pub const BINARY_EXPR: SyntaxKind = SyntaxKind(101);
+pub const SEQUENCE_EXPR: SyntaxKind = SyntaxKind(102);
+pub const VALUE_ACCESS_EXPR: SyntaxKind = SyntaxKind(103);
+pub const FUNCTION_CALL: SyntaxKind = SyntaxKind(104);
 
 // token
 pub const IDENT: SyntaxKind = SyntaxKind(10000);
@@ -22,6 +27,7 @@ pub const ID: SyntaxKind = SyntaxKind(10003);
 pub const NUMBER: SyntaxKind = SyntaxKind(10004);
 pub const STRING: SyntaxKind = SyntaxKind(10005);
 
+// operator
 pub const OPEN_PAREN: SyntaxKind = SyntaxKind(10006);
 pub const CLOSE_PAREN: SyntaxKind = SyntaxKind(10007);
 pub const OPEN_BRACKET: SyntaxKind = SyntaxKind(10008);
@@ -35,8 +41,31 @@ pub const SLASH: SyntaxKind = SyntaxKind(10015);
 pub const EQ: SyntaxKind = SyntaxKind(10016);
 pub const SEMI: SyntaxKind = SyntaxKind(10017);
 pub const COMMA: SyntaxKind = SyntaxKind(10018);
+pub const DOUBLE_QUOTE: SyntaxKind = SyntaxKind(10019);
+pub const SINGLE_QUOTE: SyntaxKind = SyntaxKind(10020);
+pub const COLON: SyntaxKind = SyntaxKind(10021);
+pub const DOT: SyntaxKind = SyntaxKind(10022);
+pub const LT: SyntaxKind = SyntaxKind(10023);
+pub const GT: SyntaxKind = SyntaxKind(10024);
+pub const BANG: SyntaxKind = SyntaxKind(10025);
 
+// keyword
 pub const FUNCTION_KW: SyntaxKind = SyntaxKind(10050);
+pub const IF_KW: SyntaxKind = SyntaxKind(10051);
+pub const ELSE_KW: SyntaxKind = SyntaxKind(10052);
+pub const FOR_WK: SyntaxKind = SyntaxKind(10053);
+pub const while_WK: SyntaxKind = SyntaxKind(10054);
+pub const SWITCH_KW: SyntaxKind = SyntaxKind(10055);
+pub const CASE_KW: SyntaxKind = SyntaxKind(10056);
+pub const DEFAULT_KW: SyntaxKind = SyntaxKind(10057);
+
+// composite operator
+pub const EQEQ: SyntaxKind = SyntaxKind(10100);
+pub const EQEQEQ: SyntaxKind = SyntaxKind(10101);
+pub const LTEQ: SyntaxKind = SyntaxKind(10102);
+pub const GTEQ: SyntaxKind = SyntaxKind(10103);
+pub const BANGEQ: SyntaxKind = SyntaxKind(10104);
+pub const BANGEQEQ: SyntaxKind = SyntaxKind(10105);
 
 // other
 pub const UNKNOW: SyntaxKind = SyntaxKind(65535);
@@ -65,6 +94,12 @@ impl SyntaxKind {
             "+" => PLUS,
             "*" => STAR,
             "," => COMMA,
+            "\"" => DOUBLE_QUOTE,
+            "'" => SINGLE_QUOTE,
+            ":" => COLON,
+            "." => DOT,
+            "<" => LT,
+            ">" => GT,
             _ => return None,
         };
         Some(op)
@@ -106,12 +141,22 @@ impl SyntaxKind {
 
 #[macro_export]
 macro_rules! T {
-    [";"] => { $ crate::syntax_kind::SEMI };
-    [","] => { $ crate::syntax_kind::COMMA };
-    ["("] => { $ crate::syntax_kind::OPEN_PAREN };
+    [";"] => { $crate::syntax_kind::SEMI };
+    [":"] => { $crate::syntax_kind::COLON };
+    [","] => { $crate::syntax_kind::COMMA };
+    ["="] => { $crate::syntax_kind::EQ };
+    ["("] => { $crate::syntax_kind::OPEN_PAREN };
+    [")"] => { $crate::syntax_kind::CLOSE_PAREN };
+    ["["] => { $crate::syntax_kind::OPEN_BRACKET };
+    ["]"] => { $crate::syntax_kind::CLOSE_BRACKET };
+    ["{"] => { $crate::syntax_kind::OPEN_BRACE };
+    ["}"] => { $crate::syntax_kind::CLOSE_BRACE };
+    ["."] => { $crate::syntax_kind::DOT };
+    ["<"] => { $crate::syntax_kind::LT };
+    [">"] => { $crate::syntax_kind::GT };
+    ["!"] => { $crate::syntax_kind::BANG };
 
     ["function"] => {$crate::syntax_kind::FUNCTION_KW};
-
 }
 
 #[cfg(test)]

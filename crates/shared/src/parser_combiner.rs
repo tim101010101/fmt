@@ -4,9 +4,10 @@ mod combiner;
 mod meta_parser;
 mod traits;
 
-use crate::parser_combiner::boxed_parser::BoxedParser;
 pub use {
+    boxed_parser::BoxedParser,
     combiner::*,
+    meta_parser::*,
     traits::{Parser, ParserResult},
 };
 
@@ -21,7 +22,7 @@ where
 }
 
 impl<'input, Input, Output> BoxedParser<'input, Input, Output> {
-    pub(crate) fn new<P>(parser: P) -> Self
+    pub fn new<P>(parser: P) -> Self
     where
         P: Parser<'input, Input, Output> + 'input,
     {

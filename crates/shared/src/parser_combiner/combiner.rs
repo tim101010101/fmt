@@ -1,4 +1,6 @@
 use crate::parser_combiner::traits::Parser;
+use crate::parser_combiner::{BoxedParser, ParserResult};
+use std::ops::Deref;
 
 pub fn pair<'input, Input, P1, P2, O1, O2>(
     parser1: P1,
@@ -111,6 +113,24 @@ where
 }
 
 // TODO just deep clone for the time being
+pub fn zero_or_one<'input, Input, P, Output>(
+    parser: P,
+) -> impl Parser<'input, Input, Option<Output>>
+where
+    P: Parser<'input, Input, Output>,
+    Input: Clone,
+{
+    move |input: Input| {
+        let input_clone = input.clone();
+
+        match parser.parse(input_clone) {
+            Ok((next_input, output)) => Ok((next_input, Some(output))),
+            Err(_) => Ok((input, None)),
+        }
+    }
+}
+
+// TODO just deep clone for the time being
 pub fn one_or_more<'input, Input, P, Output>(parser: P) -> impl Parser<'input, Input, Vec<Output>>
 where
     P: Parser<'input, Input, Output>,
@@ -153,16 +173,42 @@ where
     }
 }
 
+// TODO just deep clone for the time being
+pub fn one_of<Input, Output>(
+    parser_list: Vec<BoxedParser<Input, Output>>,
+) -> impl Parser<Input, Output>
+where
+    Input: Clone,
+{
+    let len = parser_list.len();
+    assert!(len > 1);
+    move |input: Input| {
+        for idx in 0..len {
+            let input_clone = input.clone();
+            let cur_parser = parser_list.get(idx).unwrap();
+            match cur_parser.parse(input_clone) {
+                Ok((next_input, output)) => return Ok((next_input, output)),
+                Err(_) => continue,
+            };
+        }
+
+        Err(input)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser_combiner::boxed_parser::BoxedParser;
     use crate::parser_combiner::combiner::{and_then, either, judge, left, map, pair, right};
     use crate::parser_combiner::traits::Parser;
+    use crate::parser_combiner::{one_of, zero_or_one};
 
     #[derive(Debug, PartialEq, PartialOrd, Eq, Copy, Clone)]
     struct SyntaxKind(pub u16);
     const A: SyntaxKind = SyntaxKind(1);
     const B: SyntaxKind = SyntaxKind(2);
+    const C: SyntaxKind = SyntaxKind(3);
+    const D: SyntaxKind = SyntaxKind(4);
 
     fn str_parser<'input>(expect: &'input str) -> impl Parser<'input, &str, &str> {
         move |input: &'input str| match input.get(0..expect.len()) {
@@ -252,5 +298,31 @@ mod tests {
     fn test_either() {
         let (input, p1, p2) = get_stuff();
         assert_eq!(Ok((vec![B], A)), either(p2, p1).parse(input))
+    }
+
+    #[test]
+    fn test_zero_or_one() {
+        let (input, p1, _) = get_stuff();
+        assert_eq!(Ok((vec![B], Some(A))), zero_or_one(p1).parse(input));
+
+        let (input, _, p2) = get_stuff();
+        assert_eq!(Ok((vec![B, A], None)), zero_or_one(p2).parse(input));
+    }
+
+    #[test]
+    fn test_one_of() {
+        let input = vec![D];
+        let a = BoxedParser::new(token_parser(A));
+        let b = BoxedParser::new(token_parser(B));
+        let c = BoxedParser::new(token_parser(C));
+        let d = BoxedParser::new(token_parser(D));
+
+        assert_eq!(Ok((vec![], D)), one_of(vec![a, c, b, d]).parse(input));
+
+        let input = vec![D];
+        let a = BoxedParser::new(token_parser(A));
+        let b = BoxedParser::new(token_parser(B));
+        let c = BoxedParser::new(token_parser(C));
+        assert_eq!(Err(vec![D]), one_of(vec![a, b, c]).parse(input));
     }
 }
