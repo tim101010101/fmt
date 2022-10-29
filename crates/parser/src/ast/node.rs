@@ -1,4 +1,6 @@
+use crate::ast::token::{Token, TokenData};
 use crate::ast::tree::Element;
+use crate::lex::LexedToken;
 use crate::syntax_kind::SyntaxKind;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
@@ -14,8 +16,14 @@ pub struct NodeData {
 }
 
 impl NodeData {
-    pub fn new(kind: SyntaxKind, children: Vec<Element>) -> Self {
-        let len = children.iter().map(|item| item.text_len()).sum();
+    pub fn new(
+        kind: SyntaxKind,
+        children: Vec<Element>,
+    ) -> Self {
+        let len = children
+            .iter()
+            .map(|item| item.text_len())
+            .sum();
         NodeData {
             kind,
             len,
@@ -34,12 +42,22 @@ impl NodeData {
 }
 
 impl Display for NodeData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
         for child in self.children() {
             Display::fmt(&child, f)?
         }
         Ok(())
     }
+}
+
+pub fn node(
+    kind: SyntaxKind,
+    children: Vec<Element>,
+) -> Node {
+    Node::new(NodeData::new(kind, children))
 }
 
 // DEBUG
@@ -56,7 +74,8 @@ pub fn dump_all(ele: Element) -> String {
             }
         }
         fn join(&mut self, s: &str) {
-            self.res.push_str("  ".repeat(self.ident).as_str());
+            self.res
+                .push_str("  ".repeat(self.ident).as_str());
             self.res.push_str(s);
         }
         fn walk_node(&mut self, n: Element) {
@@ -65,15 +84,18 @@ pub fn dump_all(ele: Element) -> String {
             self.join(&format!("len: {}\n", n.text_len()));
 
             if let Some(text) = n.text() {
-                self.join(&format!("text: \"{}\",\n", text));
+                self.join(&format!(
+                    "text: \"{}\",\n",
+                    text
+                ));
             }
 
             if let Some(children) = n.children() {
                 self.join("children: \n");
                 self.ident += 1;
-                children
-                    .iter()
-                    .for_each(|child| self.walk_node(child.to_owned()));
+                children.iter().for_each(|child| {
+                    self.walk_node(child.to_owned())
+                });
                 self.ident -= 1;
             }
 
