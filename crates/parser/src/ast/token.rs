@@ -1,3 +1,4 @@
+use crate::lex::LexedToken;
 use crate::syntax_kind::SyntaxKind;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
@@ -25,7 +26,15 @@ impl TokenData {
 }
 
 impl Display for TokenData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
         Display::fmt(self.text(), f)
     }
+}
+
+pub fn token(lexed_token: LexedToken) -> Token {
+    let (kind, text) = lexed_token;
+    Token::new(TokenData::new(kind, text))
 }

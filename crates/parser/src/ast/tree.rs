@@ -45,7 +45,10 @@ impl Element {
 }
 
 impl Display for Element {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
             Element::Node(n) => Display::fmt(n, f),
             Element::Token(t) => Display::fmt(t, f),
