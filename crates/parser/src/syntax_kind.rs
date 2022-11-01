@@ -1,16 +1,13 @@
 #![allow(bad_style, unreachable_pub, dead_code)]
 
-#[derive(Debug, PartialEq, PartialOrd, Eq, Copy, Clone)]
+#[derive(
+    Debug, PartialEq, PartialOrd, Eq, Hash, Copy, Clone,
+)]
 pub struct SyntaxKind(pub u16);
 
 // node
 pub const ROOT: SyntaxKind = SyntaxKind(0);
 pub const ERROR: SyntaxKind = SyntaxKind(1);
-pub const SINGLE: SyntaxKind = SyntaxKind(2);
-pub const LIST: SyntaxKind = SyntaxKind(3);
-pub const BLOCK: SyntaxKind = SyntaxKind(4);
-pub const ATTRIBUTE: SyntaxKind = SyntaxKind(5);
-pub const OBJECT_LITERAL: SyntaxKind = SyntaxKind(6);
 
 // expression
 pub const UNARY_EXPR: SyntaxKind = SyntaxKind(100);
@@ -31,6 +28,8 @@ pub const DEFINATOR: SyntaxKind = SyntaxKind(10002);
 pub const ID: SyntaxKind = SyntaxKind(10003);
 pub const NUMBER: SyntaxKind = SyntaxKind(10004);
 pub const STRING: SyntaxKind = SyntaxKind(10005);
+pub const OBJECT: SyntaxKind = SyntaxKind(9999);
+pub const ARRAY: SyntaxKind = SyntaxKind(9999);
 
 // operator
 pub const OPEN_PAREN: SyntaxKind = SyntaxKind(10006);
@@ -53,11 +52,11 @@ pub const DOT: SyntaxKind = SyntaxKind(10022);
 pub const LT: SyntaxKind = SyntaxKind(10023);
 pub const GT: SyntaxKind = SyntaxKind(10024);
 pub const BANG: SyntaxKind = SyntaxKind(10025);
-pub const AMP: SyntaxKind = SyntaxKind(10025);
-pub const PIPE: SyntaxKind = SyntaxKind(10025);
-pub const CARET: SyntaxKind = SyntaxKind(10025);
-pub const TILDE: SyntaxKind = SyntaxKind(10025);
-pub const QUESTION: SyntaxKind = SyntaxKind(10026);
+pub const AMP: SyntaxKind = SyntaxKind(10026);
+pub const PIPE: SyntaxKind = SyntaxKind(10027);
+pub const CARET: SyntaxKind = SyntaxKind(10028);
+pub const TILDE: SyntaxKind = SyntaxKind(10029);
+pub const QUESTION: SyntaxKind = SyntaxKind(10030);
 
 // keyword
 pub const FUNCTION_KW: SyntaxKind = SyntaxKind(10050);
@@ -87,6 +86,7 @@ pub const GTGT: SyntaxKind = SyntaxKind(10109);
 pub const GTGTGT: SyntaxKind = SyntaxKind(10110);
 
 // other
+pub const EMPTY: SyntaxKind = SyntaxKind(65534);
 pub const UNKNOW: SyntaxKind = SyntaxKind(65535);
 
 impl SyntaxKind {
@@ -126,9 +126,6 @@ impl SyntaxKind {
     pub fn to_str(&self) -> &str {
         match self {
             &ROOT => "ROOT",
-            &SINGLE => "SINGLE",
-            &LIST => "LIST",
-            &BLOCK => "BLOCK",
 
             &WHITESPACE => "WHITESPACE",
 

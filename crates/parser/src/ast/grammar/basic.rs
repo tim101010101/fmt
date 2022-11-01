@@ -1,12 +1,24 @@
+use crate::ast::{Empty, Node};
 use crate::lex::{LexedToken, TokenStream};
 use crate::syntax_kind::{
-    SyntaxKind, BANGEQ, BANGEQEQ, EQEQ, EQEQEQ, GTEQ, GTGT,
-    GTGTGT, LTEQ, LTLT, MINUSMINUS, PLUSPLUS, WHITESPACE,
+    SyntaxKind, BANGEQ, BANGEQEQ, EMPTY, EQEQ, EQEQEQ,
+    GTEQ, GTGT, GTGTGT, LTEQ, LTLT, MINUSMINUS, PLUSPLUS,
+    WHITESPACE,
 };
 use crate::T;
 use shared::parser_combiner::{
-    atom, judge, map, one_of, BoxedParser, Parser,
+    atom, choice, empty, judge, map, BoxedParser, Parser,
 };
+
+pub fn empty_node(
+) -> impl Parser<'static, TokenStream, Node> {
+    empty().map(|_| Empty)
+}
+
+pub fn empty_token(
+) -> impl Parser<'static, TokenStream, SyntaxKind> {
+    empty().map(|_| EMPTY)
+}
 
 pub fn single_token(
     expect: SyntaxKind,
@@ -103,7 +115,7 @@ pub fn gt_gt_gt(
 
 pub fn comparison_op(
 ) -> impl Parser<'static, TokenStream, LexedToken> {
-    one_of(vec![
+    choice(vec![
         BoxedParser::new(eq_eq()),
         BoxedParser::new(bang_eq()),
         BoxedParser::new(eq_eq_eq()),
@@ -117,7 +129,7 @@ pub fn comparison_op(
 
 pub fn calc_op(
 ) -> impl Parser<'static, TokenStream, LexedToken> {
-    one_of(vec![
+    choice(vec![
         BoxedParser::new(single_token(T!["+"])),
         BoxedParser::new(single_token(T!["-"])),
         BoxedParser::new(single_token(T!["*"])),
@@ -127,7 +139,7 @@ pub fn calc_op(
 
 pub fn bit_calc_op(
 ) -> impl Parser<'static, TokenStream, LexedToken> {
-    one_of(vec![
+    choice(vec![
         BoxedParser::new(single_token(T!["&"])),
         BoxedParser::new(single_token(T!["|"])),
         BoxedParser::new(single_token(T!["~"])),

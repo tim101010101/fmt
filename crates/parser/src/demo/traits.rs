@@ -1,1 +1,3 @@
-pub trait AstNode {}
+pub trait AstNode {
+    fn hash(&self) -> u64;
+}
