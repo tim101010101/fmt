@@ -20,6 +20,10 @@ pub enum Node {
     Empty,
 
     // literal
+    Id {
+        kind: SyntaxKind,
+        name: String,
+    },
     StringLiteral {
         kind: SyntaxKind,
         value: String,
@@ -69,9 +73,15 @@ pub enum Node {
     },
     FunctionCallExpr {
         kind: SyntaxKind,
-        name: String,
+        callee: Box<Node>,
         args: Vec<Box<Node>>,
     },
+    ReturnExpr {
+        kind: SyntaxKind,
+        expr: Box<Node>,
+    },
+
+    // statement
     VariableDeclaExpr {
         kind: SyntaxKind,
         defintor: String,

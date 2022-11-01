@@ -19,6 +19,7 @@ pub const FUNCTION_CALL_EXPR: SyntaxKind = SyntaxKind(105);
 pub const ASSIGNMENT_EXPR: SyntaxKind = SyntaxKind(106);
 pub const VARIABLE_DECLA: SyntaxKind = SyntaxKind(107);
 pub const FUNCTION_DECLA: SyntaxKind = SyntaxKind(108);
+pub const RETURN_EXPR: SyntaxKind = SyntaxKind(109);
 
 // token
 pub const IDENT: SyntaxKind = SyntaxKind(10000);
@@ -63,7 +64,7 @@ pub const FUNCTION_KW: SyntaxKind = SyntaxKind(10050);
 pub const IF_KW: SyntaxKind = SyntaxKind(10051);
 pub const ELSE_KW: SyntaxKind = SyntaxKind(10052);
 pub const FOR_WK: SyntaxKind = SyntaxKind(10053);
-pub const while_WK: SyntaxKind = SyntaxKind(10054);
+pub const WHILT_WK: SyntaxKind = SyntaxKind(10054);
 pub const SWITCH_KW: SyntaxKind = SyntaxKind(10055);
 pub const CASE_KW: SyntaxKind = SyntaxKind(10056);
 pub const DEFAULT_KW: SyntaxKind = SyntaxKind(10057);
@@ -71,6 +72,7 @@ pub const TYPE_OF_KW: SyntaxKind = SyntaxKind(10058);
 pub const DELETE_KW: SyntaxKind = SyntaxKind(10059);
 pub const INSTANCE_OF_KW: SyntaxKind = SyntaxKind(10060);
 pub const IN_KW: SyntaxKind = SyntaxKind(10061);
+pub const RETURN_KW: SyntaxKind = SyntaxKind(10062);
 
 // composite operator
 pub const EQEQ: SyntaxKind = SyntaxKind(10100);
