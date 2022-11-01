@@ -208,27 +208,48 @@ where
 }
 
 // TODO just deep clone for the time being
-pub fn choice<Input, Output>(
+pub fn choice<Input, InputItem, Output>(
     parser_list: Vec<BoxedParser<Input, Output>>,
 ) -> impl Parser<Input, Output>
 where
-    Input: Clone,
+    Input: Clone + IntoIterator<Item = InputItem>,
 {
     let len = parser_list.len();
     assert!(len > 1);
     move |input: Input| {
+        let mut flag = false;
+        let mut min =
+            input.clone().into_iter().size_hint().0;
+        let mut lengest_input = input.clone();
+        let mut output: Option<Output> = None;
+
         for idx in 0..len {
             let input_clone = input.clone();
             let cur_parser = parser_list.get(idx).unwrap();
             match cur_parser.parse(input_clone) {
-                Ok((next_input, output)) => {
-                    return Ok((next_input, output))
+                Ok((next_input, cur_output)) => {
+                    let (next_input_len, _) = next_input
+                        .clone()
+                        .into_iter()
+                        .size_hint();
+
+                    if next_input_len < min {
+                        flag = true;
+                        min = next_input_len;
+                        lengest_input = next_input;
+                        output = Some(cur_output);
+                    }
                 }
                 Err(_) => continue,
             };
         }
 
-        Err(input)
+        if flag {
+            let output = output.unwrap();
+            Ok((lengest_input, output))
+        } else {
+            Err(input.to_owned())
+        }
     }
 }
 
@@ -420,6 +441,15 @@ where
         Err(_) => return Err(input),
     }
 }
+
+// pub fn greedy<P, Input, Output>(
+//     parser: P,
+// ) -> impl Parser<Input, Output>
+// where
+//     P: Parser<Input, Output>,
+// {
+//     todo!()
+// }
 
 #[cfg(test)]
 mod tests {
