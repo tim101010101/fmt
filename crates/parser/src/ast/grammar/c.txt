@@ -1,0 +1,39 @@
+Expr -> RETURN AssignmentExpr | AssignmentExpr
+
+AssignmentExpr -> AssignmentExpr "=" TernaryExpr | TernaryExpr
+
+TernaryExpr -> (TernaryExpr | BinaryExpr) "?" Expr ":" Expr | BinaryExpr
+
+BinaryExpr -> BinaryExpr
+            ( "==" | "===" | "<" | "<=" | ">" | ">=" )
+              BinaryExpr1
+            | BinaryExpr1
+
+BinaryExpr1 -> BinaryExpr1 ( "+" | "-" ) BinaryExpr2
+             | BinaryExpr2
+
+BianryExpr2 -> BianryExpr2 ( "*" | "/" ) BinaryExpr3
+             | BinaryExpr3
+
+BinaryExpr3 -> BinaryExpr3
+             ( "&" | "|" | "^" | "~" | "<<" | ">>" | ">>>" )
+               BinaryExpr4
+             | BinaryExpr4
+
+BinaryExpr4 -> BinaryExpr4 ( INSTANCE_OF | IN ) UnaryExpr
+             | UnaryExpr
+
+UnaryExpr -> (UnaryExpr ("++" | "--"))
+       | (("++" | "--" | "!" | TYPE_OF | DELETE) UnaryExpr)
+       | FunctionCallExpr
+       | ValueAccessExpr
+
+FunctionCallExpr -> (FunctionCallExpr | ValueAccess) "(" (TernaryExpr ("," TernaryExpr)*)? ")"
+                  | ValueAccessExpr
+                  | Factor
+
+ValueAccessExpr -> (ValueAccessExpr | FunctionCallExpr) "." Pri
+                  | FunctionCallExpr
+                  | Factor
+
+Factor -> literal | ID | "(" AssignmentExpr ")"
