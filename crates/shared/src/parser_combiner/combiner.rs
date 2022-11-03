@@ -1,6 +1,6 @@
 use crate::parser_combiner::traits::Parser;
-use crate::parser_combiner::{BoxedParser, ParserResult};
-use std::ops::Deref;
+use crate::parser_combiner::BoxedParser;
+use std::fmt::Debug;
 
 pub fn pair<'input, Input, P1, P2, O1, O2>(
     parser1: P1,
@@ -208,27 +208,48 @@ where
 }
 
 // TODO just deep clone for the time being
-pub fn one_of<Input, Output>(
+pub fn choice<Input, InputItem, Output>(
     parser_list: Vec<BoxedParser<Input, Output>>,
 ) -> impl Parser<Input, Output>
 where
-    Input: Clone,
+    Input: Clone + IntoIterator<Item = InputItem>,
 {
     let len = parser_list.len();
     assert!(len > 1);
     move |input: Input| {
+        let mut flag = false;
+        let mut min =
+            input.clone().into_iter().size_hint().0;
+        let mut lengest_input = input.clone();
+        let mut output: Option<Output> = None;
+
         for idx in 0..len {
             let input_clone = input.clone();
             let cur_parser = parser_list.get(idx).unwrap();
             match cur_parser.parse(input_clone) {
-                Ok((next_input, output)) => {
-                    return Ok((next_input, output))
+                Ok((next_input, cur_output)) => {
+                    let (next_input_len, _) = next_input
+                        .clone()
+                        .into_iter()
+                        .size_hint();
+
+                    if next_input_len < min {
+                        flag = true;
+                        min = next_input_len;
+                        lengest_input = next_input;
+                        output = Some(cur_output);
+                    }
                 }
                 Err(_) => continue,
             };
         }
 
-        Err(input)
+        if flag {
+            let output = output.unwrap();
+            Ok((lengest_input, output))
+        } else {
+            Err(input.to_owned())
+        }
     }
 }
 
@@ -258,6 +279,178 @@ where
     }
 }
 
+pub fn chainl<'input, P, Input, Output, OP, DummyOutput>(
+    parser: P,
+    op: OP,
+) -> impl Parser<'input, Input, Vec<Output>>
+where
+    Input: Clone,
+    P: Parser<'input, Input, Output>,
+    OP: Parser<'input, Input, DummyOutput>,
+    Output: Clone,
+{
+    move |mut input: Input| {
+        let mut result = Vec::new();
+
+        if let Ok((next_input, item)) =
+            parser.parse(input.clone())
+        {
+            input = next_input;
+            result.push(item);
+        } else {
+            return Err(input);
+        }
+
+        while let Ok((next_input, output)) = op
+            .parse(input.clone())
+            .and_then(|(final_input, _)| {
+                parser.parse(final_input.clone())
+            })
+        {
+            input = next_input;
+            result.push(output);
+        }
+
+        Ok((input, result))
+    }
+}
+
+pub fn chainl1<'input, P, Input, Output, OP, DummyOutput>(
+    parser: P,
+    op: OP,
+) -> impl Parser<'input, Input, Vec<Output>>
+where
+    Input: Clone,
+    P: Parser<'input, Input, Output>,
+    OP: Parser<'input, Input, DummyOutput>,
+    Output: Clone,
+{
+    move |mut input: Input| {
+        let raw_input = input.clone();
+        let mut result = Vec::new();
+
+        if let Ok((next_input, item)) =
+            parser.parse(input.clone())
+        {
+            input = next_input;
+            result.push(item);
+        } else {
+            return Err(raw_input);
+        }
+
+        if let Ok((next_input, _)) = op.parse(input.clone())
+        {
+            input = next_input;
+        } else {
+            return Err(raw_input);
+        }
+
+        if let Ok((next_input, item)) =
+            parser.parse(input.clone())
+        {
+            input = next_input;
+            result.push(item);
+        } else {
+            return Err(raw_input);
+        }
+
+        while let Ok((next_input, output)) = op
+            .parse(input.clone())
+            .and_then(|(final_input, _)| {
+                parser.parse(final_input.clone())
+            })
+        {
+            input = next_input;
+            result.push(output);
+        }
+
+        Ok((input, result))
+    }
+}
+
+pub fn seq_by<'input, P, Input, Output, OP, DummyOutput>(
+    parser: P,
+    op: OP,
+) -> impl Parser<'input, Input, Vec<Output>>
+where
+    Input: Clone,
+    P: Parser<'input, Input, Output>,
+    OP: Parser<'input, Input, DummyOutput>,
+    Output: Clone,
+{
+    move |mut input: Input| {
+        let mut result = Vec::new();
+
+        if let Ok((next_input, item)) =
+            parser.parse(input.clone())
+        {
+            input = next_input;
+            result.push(item);
+        } else {
+            return Ok((input, result));
+        }
+
+        while let Ok((next_input, output)) = op
+            .parse(input.clone())
+            .and_then(|(final_input, _)| {
+                parser.parse(final_input.clone())
+            })
+        {
+            input = next_input;
+            result.push(output);
+        }
+
+        Ok((input, result))
+    }
+}
+
+pub fn between<
+    'input,
+    P,
+    Input,
+    Output,
+    LeftParser,
+    LeftOutout,
+    RightParser,
+    RightOutput,
+>(
+    left: LeftParser,
+    parser: P,
+    right: RightParser,
+) -> impl Parser<'input, Input, Output>
+where
+    Input: Clone + 'input,
+    P: Parser<'input, Input, Output>,
+    LeftParser: Parser<'input, Input, LeftOutout>,
+    RightParser: Parser<'input, Input, RightOutput>,
+{
+    move |input: Input| match left.parse(input.clone()) {
+        Ok((next_input, _)) => {
+            match parser.parse(next_input) {
+                Ok((next_input, output)) => {
+                    match right.parse(next_input) {
+                        Ok((final_input, _)) => {
+                            Ok((final_input, output))
+                        }
+                        Err(_) => return Err(input),
+                    }
+                }
+                Err(_) => return Err(input),
+            }
+        }
+        Err(_) => return Err(input),
+    }
+}
+
+// pub fn greedy<P, Input, Output>(
+//     parser: P,
+// ) -> impl Parser<Input, Output>
+// where
+//     P: Parser<Input, Output>,
+// {
+//     todo!()
+// }
+
 #[cfg(test)]
 mod tests {
     use crate::parser_combiner::boxed_parser::BoxedParser;
@@ -266,7 +459,8 @@ mod tests {
     };
     use crate::parser_combiner::traits::Parser;
     use crate::parser_combiner::{
-        one_of, series, zero_or_one,
+        between, chainl, chainl1, choice, seq_by, series,
+        zero_or_one,
     };
 
     #[derive(
@@ -415,16 +609,15 @@ mod tests {
     }
 
     #[test]
-    fn test_one_of() {
+    fn test_choice() {
         let input = vec![D];
         let a = BoxedParser::new(token_parser(A));
         let b = BoxedParser::new(token_parser(B));
         let c = BoxedParser::new(token_parser(C));
         let d = BoxedParser::new(token_parser(D));
-
         assert_eq!(
             Ok((vec![], D)),
-            one_of(vec![a, c, b, d]).parse(input)
+            choice(vec![a, c, b, d]).parse(input)
         );
 
         let input = vec![D];
@@ -433,7 +626,7 @@ mod tests {
         let c = BoxedParser::new(token_parser(C));
         assert_eq!(
             Err(vec![D]),
-            one_of(vec![a, b, c]).parse(input)
+            choice(vec![a, b, c]).parse(input)
         );
     }
 
@@ -457,6 +650,117 @@ mod tests {
         assert_eq!(
             Err(vec![D]),
             series(vec![a, b, c]).parse(input)
+        );
+    }
+
+    #[test]
+    fn test_chainl() {
+        let input = vec![A, B, A, B, A];
+        let a = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Ok((vec![], vec![A, A, A])),
+            chainl(a, b).parse(input)
+        );
+
+        let input = vec![A, B, A, B, A];
+        let c = token_parser(C);
+        let b = token_parser(B);
+        assert_eq!(
+            Err(vec![A, B, A, B, A]),
+            chainl(c, b).parse(input)
+        );
+
+        let input = vec![A, C, A, B, A];
+        let a = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Ok((vec![A, C], vec![A, A])),
+            chainl(a, b).parse(input)
+        )
+    }
+
+    #[test]
+    fn test_chainl1() {
+        let input = vec![A, B, A, B, A];
+        let a = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Ok((vec![], vec![A, A, A])),
+            chainl1(a, b).parse(input)
+        );
+
+        let input = vec![A, B, A, B, A];
+        let c = token_parser(C);
+        let b = token_parser(B);
+        assert_eq!(
+            Err(vec![A, B, A, B, A]),
+            chainl1(c, b).parse(input)
+        );
+
+        let input = vec![A, C, A, B, A];
+        let a = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Ok((vec![A, C], vec![A, A])),
+            chainl1(a, b).parse(input)
+        );
+
+        let input = vec![A, C, C, B, A];
+        let a = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Err(vec![A, C, C, B, A]),
+            chainl1(a, b).parse(input)
+        );
+    }
+
+    #[test]
+    fn test_seq_by() {
+        let input = vec![A, B, A, B, A];
+        let a = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Ok((vec![], vec![A, A, A])),
+            seq_by(a, b).parse(input)
+        );
+
+        let input = vec![A, B, A, B, A];
+        let c = token_parser(C);
+        let b = token_parser(B);
+        assert_eq!(
+            Ok((vec![A, B, A, B, A], vec![])),
+            seq_by(c, b).parse(input)
+        );
+    }
+
+    #[test]
+    fn tset_between() {
+        let input = vec![A, B, A];
+        let a1 = token_parser(A);
+        let a2 = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Ok((vec![], B)),
+            between(a1, b, a2).parse(input)
+        );
+
+        let input = vec![B, A, B];
+        let a1 = token_parser(A);
+        let a2 = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Err(vec![B, A, B]),
+            between(a1, b, a2).parse(input)
+        );
+
+        let input = vec![A, B, B];
+        let a1 = token_parser(A);
+        let a2 = token_parser(A);
+        let b = token_parser(B);
+        assert_eq!(
+            Err(vec![A, B, B]),
+            between(a1, b, a2).parse(input)
         );
     }
 }

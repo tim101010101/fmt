@@ -1,109 +1,97 @@
-use crate::ast::token::{Token, TokenData};
-use crate::ast::tree::Element;
-use crate::lex::LexedToken;
 use crate::syntax_kind::SyntaxKind;
-use std::fmt::{Debug, Display, Formatter};
-use std::sync::Arc;
 
-#[allow(dead_code)]
+#[derive(Debug, PartialOrd, PartialEq, Clone)]
+pub struct BoxedNode(Box<Node>);
 
-pub type Node = Arc<NodeData>;
-#[derive(Debug, PartialEq)]
-pub struct NodeData {
-    kind: SyntaxKind,
-    len: usize,
-    children: Vec<Element>,
+impl BoxedNode {
+    pub fn new(node: Node) -> Self {
+        BoxedNode(Box::new(node))
+    }
 }
 
-impl NodeData {
-    pub fn new(
+impl From<Node> for BoxedNode {
+    fn from(n: Node) -> Self {
+        BoxedNode::new(n)
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Node {
+    Empty,
+
+    // literal
+    Id {
         kind: SyntaxKind,
-        children: Vec<Element>,
-    ) -> Self {
-        let len = children
-            .iter()
-            .map(|item| item.text_len())
-            .sum();
-        NodeData {
-            kind,
-            len,
-            children,
-        }
-    }
-    pub fn kind(&self) -> SyntaxKind {
-        self.kind
-    }
-    pub fn text_len(&self) -> usize {
-        self.len
-    }
-    pub fn children(&self) -> &[Element] {
-        self.children.as_slice()
-    }
-}
+        name: String,
+    },
+    StringLiteral {
+        kind: SyntaxKind,
+        value: String,
+        raw: String,
+    },
+    NumberLiteral {
+        kind: SyntaxKind,
+        value: i32,
+        raw: String,
+    },
+    ObjectLiteral {
+        kind: SyntaxKind,
+        attributes: Vec<(String, Box<Node>)>,
+    },
+    ArrayLiteral {
+        kind: SyntaxKind,
+        items: Vec<Box<Node>>,
+    },
 
-impl Display for NodeData {
-    fn fmt(
-        &self,
-        f: &mut Formatter<'_>,
-    ) -> std::fmt::Result {
-        for child in self.children() {
-            Display::fmt(&child, f)?
-        }
-        Ok(())
-    }
-}
+    // expression
+    UnaryExpr {
+        kind: SyntaxKind,
+        prefix: bool,
+        op: SyntaxKind,
+        expr: Box<Node>,
+    },
+    BinaryExpr {
+        kind: SyntaxKind,
+        left: Box<Node>,
+        op: SyntaxKind,
+        right: Box<Node>,
+    },
+    TernaryExpr {
+        kind: SyntaxKind,
+        condition: Box<Node>,
+        then_expr: Box<Node>,
+        else_expr: Box<Node>,
+    },
+    AssignmentExpr {
+        kind: SyntaxKind,
+        left: Box<Node>,
+        right: Box<Node>,
+    },
+    ValueAccessExpr {
+        kind: SyntaxKind,
+        path: Vec<Box<Node>>,
+    },
+    FunctionCallExpr {
+        kind: SyntaxKind,
+        callee: Box<Node>,
+        args: Vec<Box<Node>>,
+    },
+    ReturnExpr {
+        kind: SyntaxKind,
+        expr: Box<Node>,
+    },
 
-pub fn node(
-    kind: SyntaxKind,
-    children: Vec<Element>,
-) -> Node {
-    Node::new(NodeData::new(kind, children))
-}
-
-// DEBUG
-pub fn dump_all(ele: Element) -> String {
-    struct Output {
-        res: String,
-        ident: usize,
-    }
-    impl Output {
-        fn new() -> Self {
-            Output {
-                res: String::new(),
-                ident: 0,
-            }
-        }
-        fn join(&mut self, s: &str) {
-            self.res
-                .push_str("  ".repeat(self.ident).as_str());
-            self.res.push_str(s);
-        }
-        fn walk_node(&mut self, n: Element) {
-            self.join(&format!("{}\n", n.kind().to_str()));
-            self.ident += 1;
-            self.join(&format!("len: {}\n", n.text_len()));
-
-            if let Some(text) = n.text() {
-                self.join(&format!(
-                    "text: \"{}\",\n",
-                    text
-                ));
-            }
-
-            if let Some(children) = n.children() {
-                self.join("children: \n");
-                self.ident += 1;
-                children.iter().for_each(|child| {
-                    self.walk_node(child.to_owned())
-                });
-                self.ident -= 1;
-            }
-
-            self.ident -= 1;
-        }
-    }
-
-    let mut o = Output::new();
-    o.walk_node(ele);
-    o.res
+    // statement
+    VariableDeclaExpr {
+        kind: SyntaxKind,
+        defintor: String,
+        name: String,
+        init: Box<Node>,
+    },
+    FunctionDeclaExpr {
+        kind: SyntaxKind,
+        name: String,
+        args: Vec<String>,
+        body: Vec<Box<Node>>,
+    },
 }
