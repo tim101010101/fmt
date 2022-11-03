@@ -1,61 +1,266 @@
 use crate::ast::grammar::{
-    bit_calc_op, calc_op, comparison_op, empty_node,
-    literal, minus_minus, plus_plus, single_token,
+    bit_calc_op, comparison_op, list, literal,
+    single_token, unary_prefix_op, unary_suffix_op,
 };
 use crate::ast::{
-    AssignmentExpr, BinaryExpr, Empty, FunctionCallExpr,
-    FunctionDeclaExpr, Id, Node, ReturnExpr, TernaryExpr,
-    UnaryExpr, ValueAccessExpr, VariableDeclaExpr,
+    AssignmentExpr, BinaryExpr, FunctionCallExpr, Id, Node,
+    ReturnExpr, TernaryExpr, UnaryExpr, ValueAccessExpr,
 };
-use crate::lex::TokenStream;
+use crate::lex::{LexedToken, TokenStream};
 use crate::syntax_kind::{
-    SyntaxKind, ASSIGNMENT_EXPR, BINARY_EXPR, DEFINATOR,
-    DELETE_KW, EMPTY, FUNCTION_CALL_EXPR, FUNCTION_DECLA,
-    FUNCTION_KW, ID, INSTANCE_OF_KW, IN_KW, RETURN_EXPR,
-    RETURN_KW, TERNARY_EXPR, TYPE_OF_KW, UNARY_EXPR,
-    VALUE_ACCESS_EXPR, VARIABLE_DECLA,
+    SyntaxKind, ASSIGNMENT_EXPR, BINARY_EXPR,
+    FUNCTION_CALL_EXPR, ID, INSTANCE_OF_KW, IN_KW,
+    RETURN_EXPR, RETURN_KW, TERNARY_EXPR, UNARY_EXPR,
+    VALUE_ACCESS_EXPR,
 };
 use crate::T;
 use shared::parser_combiner::{
-    between, chainl1, choice, either, left, one_or_more,
-    pair, right, seq_by, zero_or_more, BoxedParser, Parser,
+    chainl, either, right, zero_or_more, zero_or_one,
+    Parser,
 };
 
-/// Expr -> Literal
-///       | UnaryExpr
-///       | BinaryExpr
-///       | TernaryExpr
-///       | ValueAccessExpr
-///       | FunctionCallExpr
-///       | AssignmentExpr
-///       | ReturnExpr
+/// Expr -> ReturnExpr | AssignmentExpr
 pub fn expr() -> impl Parser<'static, TokenStream, Node> {
-    choice(vec![
-        BoxedParser::new(literal()),
-        BoxedParser::new(unary_expr()),
-        BoxedParser::new(binary_expr()),
-        // BoxedParser::new(assignment_expr()),
-    ])
+    either(return_expr(), assignment_expr())
 }
 
-/// UnaryExpr -> Literal UnaryExpr1
-///            | ("++" | "--" | "!" | TYPE_OF | DELETE) Expr
+/// ReturnExpr -> RETURN AssignmentExpr
+pub fn return_expr(
+) -> impl Parser<'static, TokenStream, Node> {
+    single_token(RETURN_KW).and_then(|_| {
+        assignment_expr().map(|expr| ReturnExpr {
+            kind: RETURN_EXPR,
+            expr: Box::new(expr),
+        })
+    })
+}
+
+/// AssignmentExpr -> TernaryExpr ("=" TernaryExpr)*
+pub fn assignment_expr(
+) -> impl Parser<'static, TokenStream, Node> {
+    fn build_node(
+        left: Node,
+        right_list: Vec<Node>,
+        cur: usize,
+    ) -> Node {
+        if let Some(right) = right_list.get(cur) {
+            AssignmentExpr {
+                kind: ASSIGNMENT_EXPR,
+                left: Box::new(left),
+                right: Box::new(build_node(
+                    right.to_owned(),
+                    right_list,
+                    cur + 1,
+                )),
+            }
+        } else {
+            left
+        }
+    }
+
+    ternary_expr().and_then(|left| {
+        zero_or_more(right(
+            single_token(T!["="]),
+            ternary_expr(),
+        ))
+        .map(move |right_list| {
+            build_node(left.to_owned(), right_list, 0)
+        })
+    })
+}
+
+/// TernaryExpr -> BinaryExpr ("?" TernaryExpr ":" TernaryExpr)?
+pub fn ternary_expr(
+) -> impl Parser<'static, TokenStream, Node> {
+    binary_expr().and_then(|condition| {
+        zero_or_one(
+            right(single_token(T!["?"]), ternary_expr())
+                .and_then(|then_expr| {
+                    right(
+                        single_token(T![":"]),
+                        ternary_expr(),
+                    )
+                    .map(
+                        move |else_expr| {
+                            (
+                                then_expr.to_owned(),
+                                else_expr,
+                            )
+                        },
+                    )
+                }),
+        )
+        .map(move |res| match res {
+            None => condition.to_owned(),
+            Some((then_expr, else_expr)) => TernaryExpr {
+                kind: TERNARY_EXPR,
+                condition: Box::new(condition.to_owned()),
+                then_expr: Box::new(then_expr),
+                else_expr: Box::new(else_expr),
+            },
+        })
+    })
+}
+
+fn build_binary_expr_node(
+    expr: Node,
+    mut node_list: Vec<(SyntaxKind, Node)>,
+) -> Node {
+    match node_list.len() {
+        0 => expr,
+        _ => {
+            let (op, right) = node_list.pop().unwrap();
+            BinaryExpr {
+                kind: BINARY_EXPR,
+                left: Box::new(build_binary_expr_node(
+                    expr, node_list,
+                )),
+                op,
+                right: Box::new(right),
+            }
+        }
+    }
+}
+
+/// BinaryExpr -> BinaryExpr1 ( ( "==" | "===" | "<" | "<=" | ">" | ">=" ) BinaryExpr1 )*
+pub fn binary_expr(
+) -> impl Parser<'static, TokenStream, Node> {
+    binary_expr1().and_then(|left| {
+        zero_or_more(comparison_op().and_then(|(op, _)| {
+            binary_expr1().map(move |right| (op, right))
+        }))
+        .map(move |node_list| {
+            let len = node_list.len();
+            match len {
+                0 => left.to_owned(),
+                _ => build_binary_expr_node(
+                    left.to_owned(),
+                    node_list,
+                ),
+            }
+        })
+    })
+}
+
+/// BinaryExpr1 -> BinaryExpr2 ( ( "+" | "-" ) BinaryExpr2 )*
+pub fn binary_expr1(
+) -> impl Parser<'static, TokenStream, Node> {
+    binary_expr2().and_then(|left| {
+        zero_or_more(
+            either(
+                single_token(T!["+"]),
+                single_token(T!["-"]),
+            )
+            .and_then(|(op, _)| {
+                binary_expr2().map(move |right| (op, right))
+            }),
+        )
+        .map(move |node_list| {
+            let len = node_list.len();
+            match len {
+                0 => left.to_owned(),
+                _ => build_binary_expr_node(
+                    left.to_owned(),
+                    node_list,
+                ),
+            }
+        })
+    })
+}
+
+/// BinaryExpr2 -> BinaryExpr3 ( ( "*" | "/" ) BinaryExpr3 )*
+pub fn binary_expr2(
+) -> impl Parser<'static, TokenStream, Node> {
+    binary_expr3().and_then(|left| {
+        zero_or_more(
+            either(
+                single_token(T!["*"]),
+                single_token(T!["/"]),
+            )
+            .and_then(|(op, _)| {
+                binary_expr3().map(move |right| (op, right))
+            }),
+        )
+        .map(move |node_list| {
+            let len = node_list.len();
+            match len {
+                0 => left.to_owned(),
+                _ => build_binary_expr_node(
+                    left.to_owned(),
+                    node_list,
+                ),
+            }
+        })
+    })
+}
+
+/// BianryExpr3 -> BinaryExpr4 ( ( "&" | "|" | "^" | "~" | "<<" | ">>" | ">>>" ) BinaryExpr4 )*
+pub fn binary_expr3(
+) -> impl Parser<'static, TokenStream, Node> {
+    binary_expr4().and_then(|left| {
+        zero_or_more(bit_calc_op().and_then(|(op, _)| {
+            binary_expr4().map(move |right| (op, right))
+        }))
+        .map(move |node_list| {
+            let len = node_list.len();
+            match len {
+                0 => left.to_owned(),
+                _ => build_binary_expr_node(
+                    left.to_owned(),
+                    node_list,
+                ),
+            }
+        })
+    })
+}
+
+/// BianryExpr4 -> UnaryExpr ( ( INSTANCE_OF | IN ) UnaryExpr )*
+pub fn binary_expr4(
+) -> impl Parser<'static, TokenStream, Node> {
+    unary_expr().and_then(|left| {
+        zero_or_more(
+            either(
+                single_token(INSTANCE_OF_KW),
+                single_token(IN_KW),
+            )
+            .and_then(|(op, _)| {
+                unary_expr().map(move |right| (op, right))
+            }),
+        )
+        .map(move |node_list| {
+            let len = node_list.len();
+            match len {
+                0 => left.to_owned(),
+                _ => build_binary_expr_node(
+                    left.to_owned(),
+                    node_list,
+                ),
+            }
+        })
+    })
+}
+
+/// UnaryExpr -> (("++" | "--" | "!" | TYPE_OF | DELETE) UnaryExpr) ("++" | "--")*
+///            | FunctionCallExpr ("++" | "--")*
+///            | ValueAccessExpr ("++" | "--")*
 pub fn unary_expr(
 ) -> impl Parser<'static, TokenStream, Node> {
     fn build_node(
         expr: Node,
-        op_list: Vec<SyntaxKind>,
+        op_list: Vec<LexedToken>,
         cur: usize,
+        prefix: bool,
     ) -> Node {
-        if let Some(op) = op_list.get(cur) {
+        if let Some((op, _)) = op_list.get(cur) {
             UnaryExpr {
                 kind: UNARY_EXPR,
-                prefix: false,
-                op: *op,
+                prefix,
+                op: op.to_owned(),
                 expr: Box::new(build_node(
                     expr,
                     op_list,
                     cur + 1,
+                    prefix,
                 )),
             }
         } else {
@@ -64,321 +269,846 @@ pub fn unary_expr(
     }
 
     either(
-        literal().and_then(|expr| {
-            unary_expr1().map(move |op_list| {
-                build_node(expr.to_owned(), op_list, 0)
-            })
-        }),
-        choice(vec![
-            BoxedParser::new(plus_plus()),
-            BoxedParser::new(minus_minus()),
-            BoxedParser::new(single_token(T!["!"])),
-            BoxedParser::new(single_token(TYPE_OF_KW)),
-            BoxedParser::new(single_token(DELETE_KW)),
-        ])
-        .and_then(|(op, _)| {
-            expr().map(move |expr| UnaryExpr {
-                kind: UNARY_EXPR,
-                prefix: true,
-                op,
-                expr: Box::new(expr.to_owned()),
-            })
-        }),
-    )
-}
-
-/// UnaryExpr1 -> ("++" | "--") UnaryExpr1 | <empty>
-/// UnaryExpr1 -> ("++" | "--")*
-pub fn unary_expr1(
-) -> impl Parser<'static, TokenStream, Vec<SyntaxKind>> {
-    zero_or_more(
-        either(plus_plus(), minus_minus())
-            .map(|(kind, _)| kind),
-    )
-}
-
-/// BinaryExpr -> Literal BinaryExpr1
-pub fn binary_expr(
-) -> impl Parser<'static, TokenStream, Node> {
-    literal().and_then(|left| {
-        binary_expr1().map(move |(op, right)| match right {
-            Empty => left.to_owned(),
-            _ => BinaryExpr {
-                kind: BINARY_EXPR,
-                left: Box::new(left.to_owned()),
-                op,
-                right: Box::new(right),
-            },
-        })
-    })
-}
-
-/// BinaryExpr1 -> ( "+" | "-" | "/" | "*"
-///                | "&" | "|" | "^" | "~" | "<<" | ">>" | ">>>"
-///                | ">" | ">=" | "<" | "<=" | "==" | "==="
-///                | INSTANCE_OF | IN
-///                  Expr BinaryExpr1 )
-///                | <empty>
-pub fn binary_expr1(
-) -> impl Parser<'static, TokenStream, (SyntaxKind, Node)> {
-    either(
-        choice(vec![
-            BoxedParser::new(calc_op()),
-            BoxedParser::new(bit_calc_op()),
-            BoxedParser::new(comparison_op()),
-            BoxedParser::new(single_token(INSTANCE_OF_KW)),
-            BoxedParser::new(single_token(IN_KW)),
-        ])
-        .and_then(|(op, _)| {
-            expr().map(move |left| (op, left))
-        })
-        .and_then(move |(op, left)| {
-            binary_expr1().map(move |right| match right {
-                (EMPTY, Empty) => (op, left.to_owned()),
-                _ => right,
-            })
-        }),
-        empty_node().map(|n| (EMPTY, Empty)),
-    )
-}
-
-/// TernaryExpr -> BianryExpr "?" Expr ":" Expr
-pub fn ternary_expr(
-) -> impl Parser<'static, TokenStream, Node> {
-    left(binary_expr(), single_token(T!["?"]))
-        .and_then(|condition| {
-            expr().map(move |then_expr| {
-                (condition.to_owned(), then_expr)
-            })
-        })
-        .and_then(|(condition, then_expr)| {
-            right(single_token(T![":"]), expr()).map(
-                move |else_expr| TernaryExpr {
-                    kind: TERNARY_EXPR,
-                    condition: Box::new(
-                        condition.to_owned(),
-                    ),
-                    then_expr: Box::new(
-                        then_expr.to_owned(),
-                    ),
-                    else_expr: Box::new(else_expr),
-                },
-            )
-        })
-}
-
-/// ValueAccessExpr -> ID ("." ID)+
-pub fn value_access_expr(
-) -> impl Parser<'static, TokenStream, Node> {
-    chainl1(single_token(ID), single_token(T!["."]))
-        .map(|res| {
-            res.iter()
-                .map(|(_, path)| path.to_string())
-                .collect::<Vec<String>>()
-        })
-        .map(|path| ValueAccessExpr {
-            kind: VALUE_ACCESS_EXPR,
-            path,
-        })
-}
-
-/// AssignmentExpr -> Literal AssignmentExpr1
-pub fn assignment_expr(
-) -> impl Parser<'static, TokenStream, Node> {
-    literal().and_then(|left| {
-        assignment_expr1().map(move |right| match right {
-            Empty => left.to_owned(),
-            _ => AssignmentExpr {
-                kind: ASSIGNMENT_EXPR,
-                left: Box::new(left.to_owned()),
-                right: Box::new(right),
-            },
-        })
-    })
-}
-
-/// AssignmentExpr1 -> ("=" AssignmentExpr AssignmentExpr1) | <empty>
-pub fn assignment_expr1(
-) -> impl Parser<'static, TokenStream, Node> {
-    either(
-        single_token(T!["="])
-            .and_then(|_| assignment_expr())
-            .and_then(|left| {
-                assignment_expr1().map(move |right| {
-                    match right {
-                        Empty => left.to_owned(),
-                        _ => AssignmentExpr {
-                            kind: ASSIGNMENT_EXPR,
-                            left: Box::new(left.to_owned()),
-                            right: Box::new(right),
-                        },
-                    }
+        unary_prefix_op().and_then(|op| {
+            unary_expr()
+                .map(move |expr| {
+                    build_node(
+                        expr,
+                        vec![op.to_owned()],
+                        0,
+                        true,
+                    )
                 })
+                .and_then(move |expr| {
+                    zero_or_more(unary_suffix_op()).map(
+                        move |op_list| {
+                            build_node(
+                                expr.to_owned(),
+                                op_list,
+                                0,
+                                false,
+                            )
+                        },
+                    )
+                })
+        }),
+        either(function_call_expr(), value_access_expr())
+            .and_then(move |expr| {
+                zero_or_more(unary_suffix_op()).map(
+                    move |op_list| {
+                        build_node(
+                            expr.to_owned(),
+                            op_list,
+                            0,
+                            false,
+                        )
+                    },
+                )
             }),
-        empty_node(),
     )
 }
 
-/// FunctionCallExpr -> (ID | ValueAccessExpr) (FunctionCallExpr1)+
+/// FunctionCallExpr -> ValueAccessExpr ( "(" (TernaryExpr ("," TernaryExpr)*)? ")" )*
+///                   | Factor ( "(" (TernaryExpr ("," TernaryExpr)*)? ")" )*
 pub fn function_call_expr(
 ) -> impl Parser<'static, TokenStream, Node> {
     fn build_node(
-        callee: Node,
-        args_list: Vec<Vec<Box<Node>>>,
-        cur: usize,
+        expr: Node,
+        mut args: Vec<Vec<Node>>,
     ) -> Node {
-        if let Some(args) = args_list.get(cur) {
+        if let Some(args_list) = args.pop() {
             FunctionCallExpr {
                 kind: FUNCTION_CALL_EXPR,
-                callee: Box::new(build_node(
-                    callee,
-                    args_list.to_owned(),
-                    cur + 1,
-                )),
-                args: args.to_owned(),
+                callee: Box::new(build_node(expr, args)),
+                args: args_list
+                    .iter()
+                    .map(|n| Box::new(n.to_owned()))
+                    .collect(),
             }
         } else {
-            callee
+            expr
         }
     }
 
+    either(value_access_expr(), factor()).and_then(|expr| {
+        zero_or_more(list(
+            single_token(T!["("]),
+            ternary_expr(),
+            single_token(T![")"]),
+        ))
+        .map(move |args| build_node(expr.to_owned(), args))
+    })
+}
+
+/// ValueAccessExpr -> FunctionCallExpr ("." Factor)*
+///                  | Factor ("." Factor)*
+pub fn value_access_expr(
+) -> impl Parser<'static, TokenStream, Node> {
+    chainl(
+        factor(),
+        // TODO bug here
+        // either(function_call_expr(), factor()),
+        single_token(T!["."]),
+    )
+    .map(|path| match path.len() {
+        1 => path.get(0).unwrap().to_owned(),
+        _ => ValueAccessExpr {
+            kind: VALUE_ACCESS_EXPR,
+            path: path
+                .iter()
+                .map(|n| Box::new(n.to_owned()))
+                .collect(),
+        },
+    })
+}
+
+/// Factor -> literal | ID | "(" AssignmentExpr ")"
+pub fn factor() -> impl Parser<'static, TokenStream, Node> {
     either(
-        single_token(ID)
-            .map(|(_, name)| Id { kind: ID, name }),
-        value_access_expr(),
+        either(
+            literal(),
+            single_token(ID)
+                .map(|(_, name)| Id { kind: ID, name }),
+        ),
+        // TODO there's a bug in `between`
+        single_token(T!["("])
+            .and_then(|_| assignment_expr())
+            .and_then(|node| {
+                single_token(T![")"])
+                    .map(move |_| node.to_owned())
+            }),
     )
-    .and_then(|callee| {
-        one_or_more(function_call_expr1())
-            .map(move |args| (callee.to_owned(), args))
-    })
-    .map(|(callee, args)| {
-        build_node(callee, args.to_owned(), 0)
-    })
-}
-
-/// FunctionCallExpr1 -> "(" (Expr, (, Expr)*)? ")" FunctionCallExpr1 | <empty>
-/// FunctionCallExpr1 -> "(" (Expr, (, Expr)*)? ")"
-pub fn function_call_expr1(
-) -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
-    between(
-        single_token(T!["("]),
-        seq_by(expr(), single_token(T![","])),
-        single_token(T![")"]),
-    )
-    .map(|args| {
-        args.iter()
-            .map(|arg| Box::new(arg.to_owned()))
-            .collect()
-    })
-}
-
-/// ReturnExpr -> "return" Expr
-pub fn return_decla(
-) -> impl Parser<'static, TokenStream, Node> {
-    right(single_token(RETURN_KW), expr()).map(|expr| {
-        ReturnExpr {
-            kind: RETURN_EXPR,
-            expr: Box::new(expr),
-        }
-    })
-}
-
-/// Declaration -> VariableDecla | FunctionDecla
-pub fn declaration(
-) -> impl Parser<'static, TokenStream, Node> {
-    either(variable_decla(), function_decla())
-}
-
-/// VariableDecla -> DEFINTOR ID "=" Expr
-pub fn variable_decla(
-) -> impl Parser<'static, TokenStream, Node> {
-    left(
-        pair(single_token(DEFINATOR), single_token(ID)),
-        single_token(T!["="]),
-    )
-    .and_then(|(defintor, name)| {
-        expr().map(move |init| {
-            let defintor = defintor.to_owned().1;
-            let name = name.to_owned().1;
-            VariableDeclaExpr {
-                kind: VARIABLE_DECLA,
-                defintor: defintor.to_owned(),
-                name: name.to_owned(),
-                init: Box::new(init),
-            }
-        })
-    })
-}
-
-/// FunctionDecla -> FUNCTION ID "(" (ID ("," ID)*)? ")" "{" Stat* "}"
-pub fn function_decla(
-) -> impl Parser<'static, TokenStream, Node> {
-    right(single_token(FUNCTION_KW), single_token(ID))
-        .and_then(|(_, name)| {
-            between(
-                single_token(T!["("]),
-                seq_by(
-                    single_token(ID),
-                    single_token(T![","]),
-                ),
-                single_token(T![")"]),
-            )
-            .map(move |args| {
-                (
-                    name.to_owned(),
-                    args.iter()
-                        .map(|(_, text)| text.to_string())
-                        .collect::<Vec<String>>(),
-                )
-            })
-        })
-        .and_then(|(name, args)| {
-            between(
-                single_token(T!["{"]),
-                // TODO stat
-                zero_or_more(expr()),
-                single_token(T!["}"]),
-            )
-            .map(move |body| {
-                FunctionDeclaExpr {
-                    kind: FUNCTION_DECLA,
-                    name: name.to_owned(),
-                    args: args.to_owned(),
-                    body: body
-                        .iter()
-                        .map(|n| Box::new(n.to_owned()))
-                        .collect(),
-                }
-            })
-        })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::grammar::expression::assignment_expr;
-    use crate::ast::grammar::{
-        binary_expr, expr, function_call_expr,
-        function_call_expr1, function_decla, ternary_expr,
-        unary_expr, value_access_expr, variable_decla,
-    };
-    use crate::ast::{
-        AssignmentExpr, BinaryExpr, FunctionCallExpr,
-        FunctionDeclaExpr, Id, NumberLiteral,
-        StringLiteral, TernaryExpr, UnaryExpr,
-        ValueAccessExpr, VariableDeclaExpr,
-    };
-    use crate::syntax_kind::{
-        ASSIGNMENT_EXPR, BINARY_EXPR, CLOSE_BRACE,
-        CLOSE_PAREN, COLON, COMMA, DEFINATOR, DOT, EQ,
-        EQEQ, FUNCTION_CALL_EXPR, FUNCTION_DECLA,
-        FUNCTION_KW, ID, NUMBER, OPEN_BRACE, OPEN_PAREN,
-        PLUS, PLUSPLUS, QUESTION, STRING, TERNARY_EXPR,
-        UNARY_EXPR, VALUE_ACCESS_EXPR, VARIABLE_DECLA,
-    };
+    use crate::ast::grammar::expression::*;
+    use crate::ast::*;
+    use crate::syntax_kind::*;
     use shared::parser_combiner::Parser;
+
+    fn get_number(
+    ) -> (Box<Node>, Box<Node>, Box<Node>, Box<Node>) {
+        let one = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 1,
+            raw: "1".to_string(),
+        });
+        let two = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 2,
+            raw: "2".to_string(),
+        });
+        let three = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 3,
+            raw: "3".to_string(),
+        });
+        let four = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 4,
+            raw: "4".to_string(),
+        });
+        (one, two, three, four)
+    }
+
+    #[test]
+    fn test_priority() {
+        let (one, two, three, four) = get_number();
+        let five = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 5,
+            raw: "5".to_string(),
+        });
+        let six = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 6,
+            raw: "6".to_string(),
+        });
+        let foo = Box::new(Id {
+            kind: ID,
+            name: "foo".to_string(),
+        });
+        let bar = Box::new(Id {
+            kind: ID,
+            name: "bar".to_string(),
+        });
+        let foo_str = Box::new(StringLiteral {
+            kind: STRING,
+            value: "foo".to_string(),
+            raw: "foo".to_string(),
+        });
+        let bar_str = Box::new(StringLiteral {
+            kind: STRING,
+            value: "bar".to_string(),
+            raw: "bar".to_string(),
+        });
+
+        // ++1 + 2
+        let input = vec![
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: true,
+                        op: PLUSPLUS,
+                        expr: one.clone()
+                    }),
+                    op: PLUS,
+                    right: two.clone()
+                }
+            )),
+            expr().parse(input)
+        );
+
+        // ++1 + (++2)
+        let input = vec![
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: true,
+                        op: PLUSPLUS,
+                        expr: one.clone()
+                    }),
+                    op: PLUS,
+                    right: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: true,
+                        op: PLUSPLUS,
+                        expr: two.clone()
+                    })
+                }
+            )),
+            expr().parse(input)
+        );
+
+        // 1++ + (++2)
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: false,
+                        op: PLUSPLUS,
+                        expr: one.clone()
+                    }),
+                    op: PLUS,
+                    right: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: true,
+                        op: PLUSPLUS,
+                        expr: two.clone()
+                    })
+                }
+            )),
+            expr().parse(input)
+        );
+
+        // 1 << 2 + 3
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (LT, "<".to_string()),
+            (LT, "<".to_string()),
+            (NUMBER, "2".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: LTLT,
+                        right: two.clone()
+                    }),
+                    op: PLUS,
+                    right: three.clone()
+                }
+            )),
+            expr().parse(input)
+        );
+
+        // 1 << 2 * 3
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (LT, "<".to_string()),
+            (LT, "<".to_string()),
+            (NUMBER, "2".to_string()),
+            (STAR, "*".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: LTLT,
+                        right: two.clone()
+                    }),
+                    op: STAR,
+                    right: three.clone()
+                }
+            )),
+            expr().parse(input)
+        );
+
+        // 1 << ( 2 + 3 )
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (LT, "<".to_string()),
+            (LT, "<".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (NUMBER, "2".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "3".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: one.clone(),
+                    op: LTLT,
+                    right: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: two.clone(),
+                        op: PLUS,
+                        right: three.clone()
+                    })
+                }
+            )),
+            expr().parse(input)
+        );
+
+        // 1 < 2 ? 3 + 4 : 5++
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (LT, "<".to_string()),
+            (NUMBER, "2".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "3".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "4".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "5".to_string()),
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                TernaryExpr {
+                    kind: TERNARY_EXPR,
+                    condition: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: LT,
+                        right: two.clone()
+                    }),
+                    then_expr: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: three.clone(),
+                        op: PLUS,
+                        right: four.clone()
+                    }),
+                    else_expr: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: false,
+                        op: PLUSPLUS,
+                        expr: five.clone()
+                    })
+                }
+            )),
+            expr().parse(input)
+        );
+
+        // foo.bar()
+        let input = vec![
+            (ID, "foo".to_string()),
+            (DOT, ".".to_string()),
+            (ID, "bar".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                FunctionCallExpr {
+                    kind: FUNCTION_CALL_EXPR,
+                    callee: Box::new(ValueAccessExpr {
+                        kind: VALUE_ACCESS_EXPR,
+                        path: vec![
+                            foo.clone(),
+                            bar.clone()
+                        ]
+                    }),
+                    args: vec![]
+                }
+            )),
+            expr().parse(input)
+        );
+    }
+
+    #[test]
+    fn test_return_expr() {
+        let (one, two, _, _) = get_number();
+
+        let input = vec![
+            (RETURN_KW, "return".to_string()),
+            (NUMBER, "1".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                ReturnExpr {
+                    kind: RETURN_EXPR,
+                    expr: one.clone()
+                }
+            )),
+            return_expr().parse(input)
+        );
+
+        let input = vec![
+            (RETURN_KW, "return".to_string()),
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                ReturnExpr {
+                    kind: RETURN_EXPR,
+                    expr: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: PLUS,
+                        right: two.clone()
+                    })
+                }
+            )),
+            return_expr().parse(input)
+        );
+    }
+
+    #[test]
+    fn test_assignment_expr() {
+        let (one, two, three, _) = get_number();
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "2".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                AssignmentExpr {
+                    kind: ASSIGNMENT_EXPR,
+                    left: one.clone(),
+                    right: two.clone()
+                }
+            )),
+            assignment_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "2".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                AssignmentExpr {
+                    kind: ASSIGNMENT_EXPR,
+                    left: one.clone(),
+                    right: Box::new(AssignmentExpr {
+                        kind: ASSIGNMENT_EXPR,
+                        left: two.clone(),
+                        right: three.clone()
+                    })
+                }
+            )),
+            assignment_expr().parse(input)
+        );
+    }
+
+    #[test]
+    fn test_ternary_expr() {
+        let (one, two, three, four) = get_number();
+        let five = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 5,
+            raw: "5".to_string(),
+        });
+        let six = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 6,
+            raw: "6".to_string(),
+        });
+        let seven = Box::new(NumberLiteral {
+            kind: NUMBER,
+            value: 7,
+            raw: "7".to_string(),
+        });
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "1".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "2".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                TernaryExpr {
+                    kind: TERNARY_EXPR,
+                    condition: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: EQEQ,
+                        right: one.clone()
+                    }),
+                    then_expr: two.clone(),
+                    else_expr: three.clone()
+                }
+            )),
+            ternary_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "1".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "2".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "3".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "3".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "4".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "5".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                TernaryExpr {
+                    kind: TERNARY_EXPR,
+                    condition: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: EQEQ,
+                        right: one.clone()
+                    }),
+                    then_expr: two.clone(),
+                    else_expr: Box::new(TernaryExpr {
+                        kind: TERNARY_EXPR,
+                        condition: Box::new(BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: three.clone(),
+                            op: EQEQ,
+                            right: three.clone()
+                        }),
+                        then_expr: four.clone(),
+                        else_expr: five.clone()
+                    })
+                }
+            )),
+            ternary_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "1".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "2".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "2".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "3".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "4".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "5".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                TernaryExpr {
+                    kind: TERNARY_EXPR,
+                    condition: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: EQEQ,
+                        right: one.clone()
+                    }),
+                    then_expr: Box::new(TernaryExpr {
+                        kind: TERNARY_EXPR,
+                        condition: Box::new(BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: two.clone(),
+                            op: EQEQ,
+                            right: two.clone()
+                        }),
+                        then_expr: three.clone(),
+                        else_expr: four.clone()
+                    }),
+                    else_expr: five.clone()
+                }
+            )),
+            ternary_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "1".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "2".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "2".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "3".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "4".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "5".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "5".to_string()),
+            (QUESTION, "?".to_string()),
+            (NUMBER, "6".to_string()),
+            (COLON, ":".to_string()),
+            (NUMBER, "7".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                TernaryExpr {
+                    kind: TERNARY_EXPR,
+                    condition: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: EQEQ,
+                        right: one.clone()
+                    }),
+                    then_expr: Box::new(TernaryExpr {
+                        kind: TERNARY_EXPR,
+                        condition: Box::new(BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: two.clone(),
+                            op: EQEQ,
+                            right: two.clone()
+                        }),
+                        then_expr: three.clone(),
+                        else_expr: four.clone()
+                    }),
+                    else_expr: Box::new(TernaryExpr {
+                        kind: TERNARY_EXPR,
+                        condition: Box::new(BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: five.clone(),
+                            op: EQEQ,
+                            right: five.clone()
+                        }),
+                        then_expr: six.clone(),
+                        else_expr: seven.clone()
+                    })
+                }
+            )),
+            ternary_expr().parse(input)
+        );
+    }
+
+    #[test]
+    fn test_binary_expr() {
+        let (one, two, three, _) = get_number();
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: one.clone(),
+                    op: PLUS,
+                    right: two.clone()
+                }
+            )),
+            binary_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: PLUS,
+                        right: two.clone()
+                    }),
+                    op: PLUS,
+                    right: three.clone()
+                }
+            )),
+            binary_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+            (STAR, "*".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: one.clone(),
+                    op: PLUS,
+                    right: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: two.clone(),
+                        op: STAR,
+                        right: three.clone()
+                    })
+                }
+            )),
+            binary_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (EQ, "=".to_string()),
+            (EQ, "=".to_string()),
+            (NUMBER, "2".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: one.clone(),
+                    op: EQEQ,
+                    right: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: two.clone(),
+                        op: PLUS,
+                        right: three.clone()
+                    })
+                }
+            )),
+            binary_expr().parse(input)
+        );
+
+        let input = vec![
+            (OPEN_PAREN, "(".to_string()),
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "2".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+            (STAR, "*".to_string()),
+            (NUMBER, "3".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                BinaryExpr {
+                    kind: BINARY_EXPR,
+                    left: Box::new(BinaryExpr {
+                        kind: BINARY_EXPR,
+                        left: one.clone(),
+                        op: PLUS,
+                        right: two.clone()
+                    }),
+                    op: STAR,
+                    right: three.clone()
+                }
+            )),
+            binary_expr().parse(input)
+        );
+    }
 
     #[test]
     fn test_unary_expr() {
+        let (one, _, _, _) = get_number();
+
         let input = vec![
             (NUMBER, "1".to_string()),
             (PLUS, "+".to_string()),
@@ -391,10 +1121,49 @@ mod tests {
                     kind: UNARY_EXPR,
                     prefix: false,
                     op: PLUSPLUS,
-                    expr: Box::new(NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
+                    expr: one.clone()
+                }
+            )),
+            unary_expr().parse(input)
+        );
+
+        let input = vec![
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                UnaryExpr {
+                    kind: UNARY_EXPR,
+                    prefix: false,
+                    op: PLUSPLUS,
+                    expr: one.clone()
+                }
+            )),
+            unary_expr().parse(input)
+        );
+
+        let input = vec![
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+            (NUMBER, "1".to_string()),
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                UnaryExpr {
+                    kind: UNARY_EXPR,
+                    prefix: true,
+                    op: PLUSPLUS,
+                    expr: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: false,
+                        op: PLUSPLUS,
+                        expr: one.clone()
                     })
                 }
             )),
@@ -419,11 +1188,7 @@ mod tests {
                         kind: UNARY_EXPR,
                         prefix: false,
                         op: PLUSPLUS,
-                        expr: Box::new(NumberLiteral {
-                            kind: NUMBER,
-                            value: 1,
-                            raw: "1".to_string()
-                        })
+                        expr: one.clone()
                     })
                 }
             )),
@@ -431,6 +1196,8 @@ mod tests {
         );
 
         let input = vec![
+            (PLUS, "+".to_string()),
+            (PLUS, "+".to_string()),
             (PLUS, "+".to_string()),
             (PLUS, "+".to_string()),
             (NUMBER, "1".to_string()),
@@ -442,250 +1209,20 @@ mod tests {
                     kind: UNARY_EXPR,
                     prefix: true,
                     op: PLUSPLUS,
-                    expr: Box::new(NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
+                    expr: Box::new(UnaryExpr {
+                        kind: UNARY_EXPR,
+                        prefix: true,
+                        op: PLUSPLUS,
+                        expr: one.clone()
                     })
                 }
             )),
             unary_expr().parse(input)
-        )
-    }
-
-    #[test]
-    fn test_binary_expr() {
-        let input = vec![
-            (NUMBER, "1".to_string()),
-            (PLUS, "+".to_string()),
-            (NUMBER, "1".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                BinaryExpr {
-                    kind: BINARY_EXPR,
-                    left: Box::new(NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
-                    }),
-                    op: PLUS,
-                    right: Box::new(NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
-                    })
-                }
-            )),
-            binary_expr().parse(input)
-        );
-
-        let input = vec![
-            (NUMBER, "1".to_string()),
-            (PLUS, "+".to_string()),
-            (NUMBER, "1".to_string()),
-            (PLUS, "+".to_string()),
-            (NUMBER, "1".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                BinaryExpr {
-                    kind: BINARY_EXPR,
-                    left: Box::new(NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
-                    }),
-                    op: PLUS,
-                    right: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: Box::new(NumberLiteral {
-                            kind: NUMBER,
-                            value: 1,
-                            raw: "1".to_string()
-                        }),
-                        op: PLUS,
-                        right: Box::new(NumberLiteral {
-                            kind: NUMBER,
-                            value: 1,
-                            raw: "1".to_string()
-                        })
-                    })
-                }
-            )),
-            binary_expr().parse(input)
         );
     }
 
     #[test]
-    fn test_ternary_expr() {
-        let input = vec![
-            (NUMBER, "1".to_string()),
-            (EQ, "=".to_string()),
-            (EQ, "=".to_string()),
-            (NUMBER, "1".to_string()),
-            (QUESTION, "?".to_string()),
-            (STRING, "foo".to_string()),
-            (COLON, ":".to_string()),
-            (STRING, "bar".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                TernaryExpr {
-                    kind: TERNARY_EXPR,
-                    condition: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: Box::new(NumberLiteral {
-                            kind: NUMBER,
-                            value: 1,
-                            raw: "1".to_string()
-                        }),
-                        op: EQEQ,
-                        right: Box::new(NumberLiteral {
-                            kind: NUMBER,
-                            value: 1,
-                            raw: "1".to_string()
-                        })
-                    }),
-                    then_expr: Box::new(StringLiteral {
-                        kind: STRING,
-                        value: "foo".to_string(),
-                        raw: "foo".to_string()
-                    }),
-                    else_expr: Box::new(StringLiteral {
-                        kind: STRING,
-                        value: "bar".to_string(),
-                        raw: "bar".to_string()
-                    })
-                }
-            )),
-            ternary_expr().parse(input)
-        )
-    }
-
-    #[test]
-    fn test_assignment_expr() {
-        let input = vec![
-            (STRING, "foo".to_string()),
-            (EQ, "=".to_string()),
-            (STRING, "bar".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                AssignmentExpr {
-                    kind: ASSIGNMENT_EXPR,
-                    left: Box::new(StringLiteral {
-                        kind: STRING,
-                        value: "foo".to_string(),
-                        raw: "foo".to_string()
-                    }),
-                    right: Box::new(StringLiteral {
-                        kind: STRING,
-                        value: "bar".to_string(),
-                        raw: "bar".to_string()
-                    })
-                }
-            )),
-            assignment_expr().parse(input)
-        );
-
-        let input = vec![
-            (STRING, "1".to_string()),
-            (EQ, "=".to_string()),
-            (STRING, "2".to_string()),
-            (EQ, "=".to_string()),
-            (STRING, "3".to_string()),
-            (EQ, "=".to_string()),
-            (STRING, "4".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                AssignmentExpr {
-                    kind: ASSIGNMENT_EXPR,
-                    left: Box::new(StringLiteral {
-                        kind: STRING,
-                        value: "1".to_string(),
-                        raw: "1".to_string()
-                    }),
-                    right: Box::new(AssignmentExpr {
-                        kind: ASSIGNMENT_EXPR,
-                        left: Box::new(StringLiteral {
-                            kind: STRING,
-                            value: "2".to_string(),
-                            raw: "2".to_string()
-                        }),
-                        right: Box::new(AssignmentExpr {
-                            kind: ASSIGNMENT_EXPR,
-                            left: Box::new(StringLiteral {
-                                kind: STRING,
-                                value: "3".to_string(),
-                                raw: "3".to_string()
-                            }),
-                            right: Box::new(
-                                StringLiteral {
-                                    kind: STRING,
-                                    value: "4".to_string(),
-                                    raw: "4".to_string()
-                                }
-                            )
-                        })
-                    })
-                }
-            )),
-            assignment_expr().parse(input)
-        );
-
-        let input = vec![
-            (EQ, "=".to_string()),
-            (STRING, "world".to_string()),
-        ];
-        assert_eq!(
-            Err(vec![
-                (EQ, "=".to_string()),
-                (STRING, "world".to_string()),
-            ]),
-            assignment_expr().parse(input)
-        )
-    }
-
-    #[test]
-    fn test_value_access_expr() {
-        let input = vec![
-            (ID, "foo".to_string()),
-            (DOT, ".".to_string()),
-            (ID, "bar".to_string()),
-            (DOT, ".".to_string()),
-            (ID, "baz".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                ValueAccessExpr {
-                    kind: VALUE_ACCESS_EXPR,
-                    path: vec![
-                        "foo".to_string(),
-                        "bar".to_string(),
-                        "baz".to_string()
-                    ]
-                }
-            )),
-            value_access_expr().parse(input)
-        );
-
-        let input = vec![(ID, "foo".to_string())];
-        assert_eq!(
-            Err(vec![(ID, "foo".to_string())]),
-            value_access_expr().parse(input)
-        );
-    }
-
-    #[test]
-    fn test_function_call_expr() {
+    fn test_function_call() {
         let input = vec![
             (ID, "foo".to_string()),
             (OPEN_PAREN, "(".to_string()),
@@ -709,9 +1246,9 @@ mod tests {
         let input = vec![
             (ID, "foo".to_string()),
             (OPEN_PAREN, "(".to_string()),
-            (NUMBER, "1".to_string()),
+            (STRING, "bar".to_string()),
             (COMMA, ",".to_string()),
-            (STRING, "1".to_string()),
+            (STRING, "baz".to_string()),
             (CLOSE_PAREN, ")".to_string()),
         ];
         assert_eq!(
@@ -724,15 +1261,15 @@ mod tests {
                         name: "foo".to_string()
                     }),
                     args: vec![
-                        Box::new(NumberLiteral {
-                            kind: NUMBER,
-                            value: 1,
-                            raw: "1".to_string()
+                        Box::new(StringLiteral {
+                            kind: STRING,
+                            value: "bar".to_string(),
+                            raw: "bar".to_string()
                         }),
                         Box::new(StringLiteral {
                             kind: STRING,
-                            value: "1".to_string(),
-                            raw: "1".to_string()
+                            value: "baz".to_string(),
+                            raw: "baz".to_string()
                         })
                     ]
                 }
@@ -765,96 +1302,45 @@ mod tests {
             )),
             function_call_expr().parse(input)
         );
-    }
 
-    #[test]
-    fn test_value_declaration() {
         let input = vec![
-            (DEFINATOR, "const".to_string()),
-            (ID, "foo".to_string()),
-            (EQ, "=".to_string()),
-            (STRING, "bar".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                VariableDeclaExpr {
-                    kind: VARIABLE_DECLA,
-                    defintor: "const".to_string(),
-                    name: "foo".to_string(),
-                    init: Box::new(StringLiteral {
-                        kind: STRING,
-                        value: "bar".to_string(),
-                        raw: "bar".to_string()
-                    })
-                }
-            )),
-            variable_decla().parse(input)
-        );
-    }
-
-    #[test]
-    fn test_functon_delcaration() {
-        let input = vec![
-            (FUNCTION_KW, "function".to_string()),
             (ID, "foo".to_string()),
             (OPEN_PAREN, "(".to_string()),
+            (STRING, "bar".to_string()),
             (CLOSE_PAREN, ")".to_string()),
-            (OPEN_BRACE, "{".to_string()),
-            (CLOSE_BRACE, "}".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (STRING, "baz".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
         ];
         assert_eq!(
             Ok((
                 vec![],
-                FunctionDeclaExpr {
-                    kind: FUNCTION_DECLA,
-                    name: "foo".to_string(),
-                    args: vec![],
-                    body: vec![]
-                }
-            )),
-            function_decla().parse(input)
-        )
-    }
-
-    #[test]
-    fn issue_1() {
-        let input = vec![
-            (PLUS, "+".to_string()),
-            (PLUS, "+".to_string()),
-            (NUMBER, "1".to_string()),
-            (PLUS, "+".to_string()),
-            (NUMBER, "1".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                BinaryExpr {
-                    kind: BINARY_EXPR,
-                    left: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: true,
-                        op: PLUSPLUS,
-                        expr: Box::new(NumberLiteral {
-                            kind: NUMBER,
-                            value: 1,
-                            raw: "1".to_string()
-                        })
+                FunctionCallExpr {
+                    kind: FUNCTION_CALL_EXPR,
+                    callee: Box::new(FunctionCallExpr {
+                        kind: FUNCTION_CALL_EXPR,
+                        callee: Box::new(Id {
+                            kind: ID,
+                            name: "foo".to_string()
+                        }),
+                        args: vec![Box::new(
+                            StringLiteral {
+                                kind: STRING,
+                                value: "bar".to_string(),
+                                raw: "bar".to_string()
+                            }
+                        )]
                     }),
-                    op: PLUS,
-                    right: Box::new(NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
-                    })
+                    args: vec![Box::new(StringLiteral {
+                        kind: STRING,
+                        value: "baz".to_string(),
+                        raw: "baz".to_string()
+                    })]
                 }
             )),
-            expr().parse(input)
+            function_call_expr().parse(input)
         );
-    }
 
-    #[test]
-    fn issue_2() {
         let input = vec![
             (ID, "foo".to_string()),
             (DOT, ".".to_string()),
@@ -870,8 +1356,14 @@ mod tests {
                     callee: Box::new(ValueAccessExpr {
                         kind: VALUE_ACCESS_EXPR,
                         path: vec![
-                            "foo".to_string(),
-                            "bar".to_string()
+                            Box::new(Id {
+                                kind: ID,
+                                name: "foo".to_string()
+                            }),
+                            Box::new(Id {
+                                kind: ID,
+                                name: "bar".to_string()
+                            })
                         ]
                     }),
                     args: vec![]
@@ -879,5 +1371,114 @@ mod tests {
             )),
             function_call_expr().parse(input)
         )
+    }
+
+    #[test]
+    fn test_value_access() {
+        let input = vec![
+            (ID, "foo".to_string()),
+            (DOT, ".".to_string()),
+            (ID, "bar".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                ValueAccessExpr {
+                    kind: VALUE_ACCESS_EXPR,
+                    path: vec![
+                        Box::new(Id {
+                            kind: ID,
+                            name: "foo".to_string()
+                        }),
+                        Box::new(Id {
+                            kind: ID,
+                            name: "bar".to_string()
+                        })
+                    ]
+                }
+            )),
+            value_access_expr().parse(input)
+        )
+    }
+
+    #[test]
+    fn test_factor() {
+        let input = vec![(STRING, "foo".to_string())];
+        assert_eq!(
+            Ok((
+                vec![],
+                StringLiteral {
+                    kind: STRING,
+                    value: "foo".to_string(),
+                    raw: "foo".to_string()
+                }
+            )),
+            factor().parse(input)
+        );
+
+        let input = vec![(ID, "foo".to_string())];
+        assert_eq!(
+            Ok((
+                vec![],
+                Id {
+                    kind: ID,
+                    name: "foo".to_string()
+                }
+            )),
+            factor().parse(input)
+        );
+
+        let input = vec![
+            (OPEN_PAREN, "(".to_string()),
+            (ID, "foo".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                Id {
+                    kind: ID,
+                    name: "foo".to_string()
+                }
+            )),
+            factor().parse(input)
+        );
+    }
+
+    fn issue1() {
+        let foo = Box::new(Id {
+            kind: ID,
+            name: "foo".to_string(),
+        });
+        let bar = Box::new(Id {
+            kind: ID,
+            name: "bar".to_string(),
+        });
+
+        // foo().bar
+        let input = vec![
+            (ID, "foo".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+            (DOT, ".".to_string()),
+            (ID, "bar".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                ValueAccessExpr {
+                    kind: VALUE_ACCESS_EXPR,
+                    path: vec![
+                        Box::new(FunctionCallExpr {
+                            kind: FUNCTION_CALL_EXPR,
+                            callee: foo.clone(),
+                            args: vec![]
+                        }),
+                        bar.clone()
+                    ]
+                }
+            )),
+            expr().parse(input)
+        );
     }
 }
