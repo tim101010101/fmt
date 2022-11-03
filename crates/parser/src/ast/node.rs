@@ -69,7 +69,7 @@ pub enum Node {
     },
     ValueAccessExpr {
         kind: SyntaxKind,
-        path: Vec<String>,
+        path: Vec<Box<Node>>,
     },
     FunctionCallExpr {
         kind: SyntaxKind,
