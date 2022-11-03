@@ -1,12 +1,25 @@
+use crate::ast::{Empty, Node};
 use crate::lex::{LexedToken, TokenStream};
 use crate::syntax_kind::{
-    SyntaxKind, BANGEQ, BANGEQEQ, EQEQ, EQEQEQ, GTEQ, GTGT,
-    GTGTGT, LTEQ, LTLT, MINUSMINUS, PLUSPLUS, WHITESPACE,
+    SyntaxKind, BANGEQ, BANGEQEQ, DELETE_KW, EMPTY, EQEQ,
+    EQEQEQ, GTEQ, GTGT, GTGTGT, LTEQ, LTLT, MINUSMINUS,
+    PLUSPLUS, TYPE_OF_KW, WHITESPACE,
 };
 use crate::T;
 use shared::parser_combiner::{
-    atom, judge, map, one_of, BoxedParser, Parser,
+    atom, between, choice, either, empty, judge, map,
+    seq_by, zero_or_more, BoxedParser, Parser,
 };
+
+pub fn empty_node(
+) -> impl Parser<'static, TokenStream, Node> {
+    empty().map(|_| Empty)
+}
+
+pub fn empty_token(
+) -> impl Parser<'static, TokenStream, SyntaxKind> {
+    empty().map(|_| EMPTY)
+}
 
 pub fn single_token(
     expect: SyntaxKind,
@@ -103,7 +116,7 @@ pub fn gt_gt_gt(
 
 pub fn comparison_op(
 ) -> impl Parser<'static, TokenStream, LexedToken> {
-    one_of(vec![
+    choice(vec![
         BoxedParser::new(eq_eq()),
         BoxedParser::new(bang_eq()),
         BoxedParser::new(eq_eq_eq()),
@@ -117,7 +130,7 @@ pub fn comparison_op(
 
 pub fn calc_op(
 ) -> impl Parser<'static, TokenStream, LexedToken> {
-    one_of(vec![
+    choice(vec![
         BoxedParser::new(single_token(T!["+"])),
         BoxedParser::new(single_token(T!["-"])),
         BoxedParser::new(single_token(T!["*"])),
@@ -127,7 +140,7 @@ pub fn calc_op(
 
 pub fn bit_calc_op(
 ) -> impl Parser<'static, TokenStream, LexedToken> {
-    one_of(vec![
+    choice(vec![
         BoxedParser::new(single_token(T!["&"])),
         BoxedParser::new(single_token(T!["|"])),
         BoxedParser::new(single_token(T!["~"])),
@@ -138,16 +151,67 @@ pub fn bit_calc_op(
     ])
 }
 
+pub fn unary_prefix_op(
+) -> impl Parser<'static, TokenStream, LexedToken> {
+    choice(vec![
+        BoxedParser::new(plus_plus()),
+        BoxedParser::new(minus_minus()),
+        BoxedParser::new(single_token(T!["!"])),
+        BoxedParser::new(single_token(TYPE_OF_KW)),
+        BoxedParser::new(single_token(DELETE_KW)),
+    ])
+}
+
+pub fn unary_suffix_op(
+) -> impl Parser<'static, TokenStream, LexedToken> {
+    either(plus_plus(), minus_minus())
+}
+
+pub fn list<ItemParser, SurroundParser>(
+    left: SurroundParser,
+    item: ItemParser,
+    right: SurroundParser,
+) -> impl Parser<'static, TokenStream, Vec<Node>>
+where
+    SurroundParser:
+        Parser<'static, TokenStream, LexedToken>,
+    ItemParser: Parser<'static, TokenStream, Node>,
+{
+    between(
+        left,
+        seq_by(item, single_token(T![","])),
+        right,
+    )
+}
+
+pub fn block<P>(
+    parser: P,
+) -> impl Parser<'static, TokenStream, Vec<Node>>
+where
+    P: Parser<'static, TokenStream, Node>,
+{
+    between(
+        single_token(T!["{"]),
+        zero_or_more(parser),
+        single_token(T!["}"]),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ast::grammar::basic::{
         bang_eq, bang_eq_eq, eq_eq, eq_eq_eq, gt_eq, lt_eq,
         single_token, white_space,
     };
+    use crate::ast::grammar::{block, list, literal};
+    use crate::ast::{NumberLiteral, StringLiteral};
     use crate::syntax_kind::{
-        BANG, BANGEQ, BANGEQEQ, DEFINATOR, EQ, EQEQ,
-        EQEQEQ, GT, GTEQ, LT, LTEQ, WHITESPACE,
+        BANG, BANGEQ, BANGEQEQ, CLOSE_BRACE, CLOSE_PAREN,
+        COMMA, DEFINATOR, EQ, EQEQ, EQEQEQ, GT, GTEQ, LT,
+        LTEQ, NUMBER, OPEN_BRACE, OPEN_PAREN, STRING,
+        WHITESPACE,
     };
+    use crate::T;
     use shared::parser_combiner::Parser;
 
     #[test]
@@ -237,6 +301,137 @@ mod tests {
                 (EQ, "=".to_string()),
                 (EQ, "=".to_string()),
             ])
+        );
+    }
+
+    #[test]
+    fn test_list() {
+        let input = vec![
+            (OPEN_PAREN, "(".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((vec![], vec![])),
+            list(
+                single_token(T!["("]),
+                literal(),
+                single_token(T![")"])
+            )
+            .parse(input)
+        );
+
+        let input = vec![
+            (OPEN_PAREN, "(".to_string()),
+            (NUMBER, "1".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                vec![NumberLiteral {
+                    kind: NUMBER,
+                    value: 1,
+                    raw: "1".to_string()
+                }]
+            )),
+            list(
+                single_token(T!["("]),
+                literal(),
+                single_token(T![")"])
+            )
+            .parse(input)
+        );
+
+        let input = vec![
+            (OPEN_PAREN, "(".to_string()),
+            (NUMBER, "1".to_string()),
+            (COMMA, ",".to_string()),
+            (NUMBER, "1".to_string()),
+            (COMMA, ",".to_string()),
+            (NUMBER, "1".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Ok((
+                vec![],
+                vec![
+                    NumberLiteral {
+                        kind: NUMBER,
+                        value: 1,
+                        raw: "1".to_string()
+                    },
+                    NumberLiteral {
+                        kind: NUMBER,
+                        value: 1,
+                        raw: "1".to_string()
+                    },
+                    NumberLiteral {
+                        kind: NUMBER,
+                        value: 1,
+                        raw: "1".to_string()
+                    }
+                ]
+            )),
+            list(
+                single_token(T!["("]),
+                literal(),
+                single_token(T![")"])
+            )
+            .parse(input)
+        );
+
+        let input = vec![
+            (OPEN_PAREN, "(".to_string()),
+            (NUMBER, "1".to_string()),
+            (COMMA, ",".to_string()),
+            (NUMBER, "1".to_string()),
+            (COMMA, ",".to_string()),
+            (NUMBER, "1".to_string()),
+            (COMMA, ",".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        assert_eq!(
+            Err(input.clone()),
+            list(
+                single_token(T!["("]),
+                literal(),
+                single_token(T![")"])
+            )
+            .parse(input)
+        )
+    }
+
+    #[test]
+    fn test_block() {
+        let foo = StringLiteral {
+            kind: STRING,
+            value: "foo".to_string(),
+            raw: "foo".to_string(),
+        };
+        let bar = StringLiteral {
+            kind: STRING,
+            value: "bar".to_string(),
+            raw: "bar".to_string(),
+        };
+
+        let input = vec![
+            (OPEN_BRACE, "{".to_string()),
+            (CLOSE_BRACE, "}".to_string()),
+        ];
+        assert_eq!(
+            Ok((vec![], vec![])),
+            block(literal()).parse(input)
+        );
+
+        let input = vec![
+            (OPEN_BRACE, "{".to_string()),
+            (STRING, "foo".to_string()),
+            (STRING, "bar".to_string()),
+            (CLOSE_BRACE, "}".to_string()),
+        ];
+        assert_eq!(
+            Ok((vec![], vec![foo, bar])),
+            block(literal()).parse(input)
         );
     }
 }
