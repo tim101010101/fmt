@@ -19,6 +19,11 @@ use shared::parser_combiner::{
     Parser,
 };
 
+pub fn expr_node(
+) -> impl Parser<'static, TokenStream, Box<Node>> {
+    expr().map(|n| Box::new(n))
+}
+
 /// Expr -> ReturnExpr | AssignmentExpr
 pub fn expr() -> impl Parser<'static, TokenStream, Node> {
     either(return_expr(), assignment_expr())
@@ -377,6 +382,11 @@ pub fn factor() -> impl Parser<'static, TokenStream, Node> {
                 single_token(T![")"])
                     .map(move |_| node.to_owned())
             }),
+        // between(
+        //     single_token(T!["("]),
+        //     assignment_expr(),
+        //     single_token(T![")"]),
+        // ),
     )
 }
 
@@ -1246,9 +1256,9 @@ mod tests {
         let input = vec![
             (ID, "foo".to_string()),
             (OPEN_PAREN, "(".to_string()),
-            (STRING, "bar".to_string()),
+            (STRING, "\"bar\"".to_string()),
             (COMMA, ",".to_string()),
-            (STRING, "baz".to_string()),
+            (STRING, "\"baz\"".to_string()),
             (CLOSE_PAREN, ")".to_string()),
         ];
         assert_eq!(
@@ -1264,12 +1274,12 @@ mod tests {
                         Box::new(StringLiteral {
                             kind: STRING,
                             value: "bar".to_string(),
-                            raw: "bar".to_string()
+                            raw: "\"bar\"".to_string()
                         }),
                         Box::new(StringLiteral {
                             kind: STRING,
                             value: "baz".to_string(),
-                            raw: "baz".to_string()
+                            raw: "\"baz\"".to_string()
                         })
                     ]
                 }
@@ -1306,10 +1316,10 @@ mod tests {
         let input = vec![
             (ID, "foo".to_string()),
             (OPEN_PAREN, "(".to_string()),
-            (STRING, "bar".to_string()),
+            (STRING, "\"bar\"".to_string()),
             (CLOSE_PAREN, ")".to_string()),
             (OPEN_PAREN, "(".to_string()),
-            (STRING, "baz".to_string()),
+            (STRING, "\"baz\"".to_string()),
             (CLOSE_PAREN, ")".to_string()),
         ];
         assert_eq!(
@@ -1327,14 +1337,14 @@ mod tests {
                             StringLiteral {
                                 kind: STRING,
                                 value: "bar".to_string(),
-                                raw: "bar".to_string()
+                                raw: "\"bar\"".to_string()
                             }
                         )]
                     }),
                     args: vec![Box::new(StringLiteral {
                         kind: STRING,
                         value: "baz".to_string(),
-                        raw: "baz".to_string()
+                        raw: "\"baz\"".to_string()
                     })]
                 }
             )),
@@ -1403,14 +1413,14 @@ mod tests {
 
     #[test]
     fn test_factor() {
-        let input = vec![(STRING, "foo".to_string())];
+        let input = vec![(STRING, "\"foo\"".to_string())];
         assert_eq!(
             Ok((
                 vec![],
                 StringLiteral {
                     kind: STRING,
                     value: "foo".to_string(),
-                    raw: "foo".to_string()
+                    raw: "\"foo\"".to_string()
                 }
             )),
             factor().parse(input)
@@ -1480,5 +1490,17 @@ mod tests {
             )),
             expr().parse(input)
         );
+    }
+
+    #[test]
+    fn issue2() {
+        let input = vec![
+            (OPEN_PAREN, "(".to_string()),
+            (OPEN_PAREN, "(".to_string()),
+            (ID, "foo".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+            (CLOSE_PAREN, ")".to_string()),
+        ];
+        println!("{:?}", factor().parse(input))
     }
 }
