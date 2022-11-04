@@ -1,6 +1,7 @@
 use crate::ast::grammar::basic::single_token;
+use crate::ast::grammar::expr;
 use crate::ast::{
-    ArrayLiteral, Node, NumberLiteral, ObjectLiteral,
+    ArrayLiteral, Id, Node, NumberLiteral, ObjectLiteral,
     StringLiteral,
 };
 use crate::lex::TokenStream;
@@ -9,7 +10,8 @@ use crate::syntax_kind::{
 };
 use crate::T;
 use shared::parser_combiner::{
-    between, choice, left, seq_by, BoxedParser, Parser,
+    between, choice, either, left, seq_by, BoxedParser,
+    Parser,
 };
 
 /// StringLiteral -> STRING
@@ -17,7 +19,7 @@ pub fn string_literal(
 ) -> impl Parser<'static, TokenStream, Node> {
     single_token(STRING).map(|(_, text)| StringLiteral {
         kind: STRING,
-        value: text.clone(),
+        value: text[1..text.len() - 1].to_string(),
         raw: text,
     })
 }
@@ -59,8 +61,7 @@ pub fn key_value(
 {
     left(single_token(ID), single_token(T![":"])).and_then(
         |(_, key)| {
-            // TODO (Literal | Expr)
-            literal().map(move |value| {
+            either(literal(), expr()).map(move |value| {
                 (key.to_owned(), Box::new(value))
             })
         },
@@ -81,8 +82,8 @@ pub fn array_literal(
 pub fn array_item(
 ) -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
     seq_by(
-        // TODO Literal | Expr
-        literal().map(|item| Box::new(item)),
+        either(literal(), expr())
+            .map(|item| Box::new(item)),
         single_token(T![","]),
     )
 }
@@ -99,6 +100,12 @@ pub fn literal() -> impl Parser<'static, TokenStream, Node>
         BoxedParser::new(object_literal()),
         BoxedParser::new(array_literal()),
     ])
+}
+
+pub fn id() -> impl Parser<'static, TokenStream, Box<Node>>
+{
+    single_token(ID)
+        .map(|(_, name)| Box::new(Id { kind: ID, name }))
 }
 
 #[cfg(test)]
@@ -120,14 +127,14 @@ mod tests {
 
     #[test]
     fn test_string_literal() {
-        let input = vec![(STRING, "hello".to_string())];
+        let input = vec![(STRING, "\"hello\"".to_string())];
         assert_eq!(
             Ok((
                 vec![],
                 StringLiteral {
                     kind: STRING,
                     value: "hello".to_string(),
-                    raw: "hello".to_string()
+                    raw: "\"hello\"".to_string()
                 }
             )),
             string_literal().parse(input)
@@ -156,7 +163,7 @@ mod tests {
             (OPEN_BRACE, "{".to_string()),
             (ID, "hello".to_string()),
             (COLON, ":".to_string()),
-            (STRING, "world".to_string()),
+            (STRING, "\"world\"".to_string()),
             (CLOSE_BRACE, "}".to_string()),
         ];
         assert_eq!(
@@ -169,7 +176,7 @@ mod tests {
                         Box::new(StringLiteral {
                             kind: STRING,
                             value: "world".to_string(),
-                            raw: "world".to_string()
+                            raw: "\"world\"".to_string(),
                         })
                     )]
                 }
@@ -199,7 +206,7 @@ mod tests {
             (OPEN_BRACE, "{".to_string()),
             (ID, "hello".to_string()),
             (COLON, ":".to_string()),
-            (STRING, "world".to_string()),
+            (STRING, "\"world\"".to_string()),
             (CLOSE_BRACE, "}".to_string()),
             (CLOSE_BRACE, "}".to_string()),
         ];
@@ -218,7 +225,7 @@ mod tests {
                                     kind: STRING,
                                     value: "world"
                                         .to_string(),
-                                    raw: "world"
+                                    raw: "\"world\""
                                         .to_string(),
                                 })
                             )],
@@ -234,9 +241,9 @@ mod tests {
     fn test_array_literal() {
         let input = vec![
             (OPEN_BRACKET, "[".to_string()),
-            (STRING, "foo".to_string()),
+            (STRING, "\"foo\"".to_string()),
             (COMMA, ",".to_string()),
-            (STRING, "bar".to_string()),
+            (STRING, "\"bar\"".to_string()),
             (CLOSE_BRACKET, "]".to_string()),
         ];
         assert_eq!(
@@ -248,12 +255,12 @@ mod tests {
                         Box::new(StringLiteral {
                             kind: STRING,
                             value: "foo".to_string(),
-                            raw: "foo".to_string()
+                            raw: "\"foo\"".to_string()
                         }),
                         Box::new(StringLiteral {
                             kind: STRING,
                             value: "bar".to_string(),
-                            raw: "bar".to_string()
+                            raw: "\"bar\"".to_string()
                         })
                     ]
                 }
@@ -278,10 +285,10 @@ mod tests {
 
         let input = vec![
             (OPEN_BRACKET, "[".to_string()),
-            (STRING, "foo".to_string()),
+            (STRING, "\"foo\"".to_string()),
             (COMMA, ",".to_string()),
             (OPEN_BRACKET, "[".to_string()),
-            (STRING, "bar".to_string()),
+            (STRING, "\"bar\"".to_string()),
             (CLOSE_BRACKET, "]".to_string()),
             (CLOSE_BRACKET, "]".to_string()),
         ];
@@ -294,7 +301,7 @@ mod tests {
                         Box::new(StringLiteral {
                             kind: STRING,
                             value: "foo".to_string(),
-                            raw: "foo".to_string()
+                            raw: "\"foo\"".to_string()
                         }),
                         Box::new(ArrayLiteral {
                             kind: ARRAY,
@@ -303,7 +310,8 @@ mod tests {
                                     kind: STRING,
                                     value: "bar"
                                         .to_string(),
-                                    raw: "bar".to_string()
+                                    raw: "\"bar\""
+                                        .to_string()
                                 }
                             )]
                         })

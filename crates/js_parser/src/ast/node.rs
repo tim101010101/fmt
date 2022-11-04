@@ -19,6 +19,11 @@ impl From<Node> for BoxedNode {
 pub enum Node {
     Empty,
 
+    Root {
+        kind: SyntaxKind,
+        statements: Vec<Box<Node>>,
+    },
+
     // literal
     Id {
         kind: SyntaxKind,
@@ -82,16 +87,52 @@ pub enum Node {
     },
 
     // statement
-    VariableDeclaExpr {
+    VariableDeclaStatement {
         kind: SyntaxKind,
-        defintor: String,
-        name: String,
+        definator: String,
+        name: Box<Node>,
         init: Box<Node>,
     },
-    FunctionDeclaExpr {
+    FunctionDeclaStatement {
         kind: SyntaxKind,
-        name: String,
-        args: Vec<String>,
+        name: Box<Node>,
+        args: Vec<Box<Node>>,
         body: Vec<Box<Node>>,
     },
+    IfStatement {
+        kind: SyntaxKind,
+        expr: Box<Node>,
+        then_block: Vec<Box<Node>>,
+        else_block: Box<Node>, // IfStat | Block
+    },
+    SwitchStatement {
+        kind: SyntaxKind,
+        expr: Box<Node>,
+        then_block: Vec<Box<Node>>,
+    },
+    CaseStatement {
+        kind: SyntaxKind,
+        expr: Box<Node>,
+        has_break: bool,
+        then_block: Vec<Box<Node>>,
+    },
+    DefaultStatement {
+        kind: SyntaxKind,
+        has_break: bool,
+        then_block: Vec<Box<Node>>,
+    },
+    ForStatement {
+        kind: SyntaxKind,
+        init: Box<Node>,
+        condition: Box<Node>,
+        step: Box<Node>,
+        then_block: Vec<Box<Node>>,
+    },
+    WhileStatement {
+        kind: SyntaxKind,
+        condition: Box<Node>,
+        then_block: Vec<Box<Node>>,
+    },
 }
+
+
