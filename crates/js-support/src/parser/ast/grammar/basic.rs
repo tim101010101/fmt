@@ -1,11 +1,11 @@
-use crate::ast::{Empty, Node};
-use crate::lex::{LexedToken, TokenStream};
-use crate::syntax_kind::{
-    SyntaxKind, BANGEQ, BANGEQEQ, DELETE_KW, EMPTY, EQEQ,
-    EQEQEQ, GTEQ, GTGT, GTGTGT, LTEQ, LTLT, MINUSMINUS,
-    PLUSPLUS, TYPE_OF_KW, WHITESPACE,
+use crate::{
+    parser::{
+        ast::{Node, Node::*},
+        LexedToken, TokenStream,
+    },
+    syntax_kind::*,
+    T,
 };
-use crate::T;
 use shared::parser_combiner::{
     atom, between, choice, either, empty, judge, map,
     seq_by, zero_or_more, BoxedParser, Parser,
@@ -199,20 +199,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::grammar::basic::{
-        bang_eq, bang_eq_eq, eq_eq, eq_eq_eq, gt_eq, lt_eq,
-        single_token, white_space,
-    };
-    use crate::ast::grammar::{block, list, literal};
-    use crate::ast::{NumberLiteral, StringLiteral};
-    use crate::syntax_kind::{
-        BANG, BANGEQ, BANGEQEQ, CLOSE_BRACE, CLOSE_PAREN,
-        COMMA, DEFINATOR, EQ, EQEQ, EQEQEQ, GT, GTEQ, LT,
-        LTEQ, NUMBER, OPEN_BRACE, OPEN_PAREN, STRING,
-        WHITESPACE,
-    };
-    use crate::T;
-    use shared::parser_combiner::Parser;
+    use super::*;
+    use crate::parser::ast::grammar::literal;
 
     #[test]
     fn test_single_token() {

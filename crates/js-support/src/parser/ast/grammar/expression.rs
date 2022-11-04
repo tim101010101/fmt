@@ -1,19 +1,11 @@
-use crate::ast::grammar::{
-    bit_calc_op, comparison_op, list, literal,
-    single_token, unary_prefix_op, unary_suffix_op,
+use crate::{
+    parser::{
+        ast::{grammar::*, Node, Node::*},
+        LexedToken, TokenStream,
+    },
+    syntax_kind::*,
+    T,
 };
-use crate::ast::{
-    AssignmentExpr, BinaryExpr, FunctionCallExpr, Id, Node,
-    ReturnExpr, TernaryExpr, UnaryExpr, ValueAccessExpr,
-};
-use crate::lex::{LexedToken, TokenStream};
-use crate::syntax_kind::{
-    SyntaxKind, ASSIGNMENT_EXPR, BINARY_EXPR,
-    FUNCTION_CALL_EXPR, ID, INSTANCE_OF_KW, IN_KW,
-    RETURN_EXPR, RETURN_KW, TERNARY_EXPR, UNARY_EXPR,
-    VALUE_ACCESS_EXPR,
-};
-use crate::T;
 use shared::parser_combiner::{
     chainl, either, right, zero_or_more, zero_or_one,
     Parser,
@@ -392,10 +384,7 @@ pub fn factor() -> impl Parser<'static, TokenStream, Node> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::grammar::expression::*;
-    use crate::ast::*;
-    use crate::syntax_kind::*;
-    use shared::parser_combiner::Parser;
+    use super::*;
 
     fn get_number(
     ) -> (Box<Node>, Box<Node>, Box<Node>, Box<Node>) {

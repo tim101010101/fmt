@@ -1,7 +1,10 @@
-use crate::ast::grammar::stat_node;
-use crate::ast::{Node, Root};
-use crate::lex::TokenStream;
-use crate::syntax_kind::ROOT;
+use crate::{
+    parser::{
+        ast::{grammar::stat_node, Node, Node::Root},
+        TokenStream,
+    },
+    syntax_kind::ROOT,
+};
 use shared::parser_combiner::{zero_or_more, Parser};
 
 /// Root -> stat*
@@ -14,17 +17,10 @@ pub fn root() -> impl Parser<'static, TokenStream, Node> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::grammar::program::root;
-    use crate::ast::{
-        FunctionDeclaStatement, Id, NumberLiteral, Root,
-        VariableDeclaStatement,
-    };
-    use crate::lex;
-    use crate::syntax_kind::{
-        FUNCTION_DECLA_STAT, ID, NUMBER, ROOT,
-        VARIABLE_DECLA_STAT,
-    };
-    use shared::parser_combiner::Parser;
+    use super::*;
+    use crate::parser::ast::Node::*;
+    use crate::parser::lex;
+    use crate::syntax_kind::*;
 
     #[test]
     fn test_root() {

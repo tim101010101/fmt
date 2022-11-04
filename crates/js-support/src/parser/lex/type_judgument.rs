@@ -25,6 +25,9 @@ mod tests {
 
     #[test]
     fn test_test() {
-        println!("{}", env::current_dir().unwrap().display())
+        println!(
+            "{}",
+            env::current_dir().unwrap().display()
+        )
     }
 }

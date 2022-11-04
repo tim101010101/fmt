@@ -1,14 +1,11 @@
-use crate::ast::grammar::basic::single_token;
-use crate::ast::grammar::expr;
-use crate::ast::{
-    ArrayLiteral, Id, Node, NumberLiteral, ObjectLiteral,
-    StringLiteral,
+use crate::{
+    parser::{
+        ast::{grammar::*, Node, Node::*},
+        TokenStream,
+    },
+    syntax_kind::*,
+    T,
 };
-use crate::lex::TokenStream;
-use crate::syntax_kind::{
-    ARRAY, ID, NUMBER, OBJECT, STRING,
-};
-use crate::T;
 use shared::parser_combiner::{
     between, choice, either, left, seq_by, BoxedParser,
     Parser,
@@ -110,20 +107,7 @@ pub fn id() -> impl Parser<'static, TokenStream, Box<Node>>
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::grammar::literal::string_literal;
-    use crate::ast::grammar::{
-        array_literal, number_literal, object_literal,
-    };
-    use crate::ast::{
-        ArrayLiteral, NumberLiteral, ObjectLiteral,
-        StringLiteral,
-    };
-    use crate::syntax_kind::{
-        ARRAY, CLOSE_BRACE, CLOSE_BRACKET, COLON, COMMA,
-        ID, NUMBER, OBJECT, OPEN_BRACE, OPEN_BRACKET,
-        STRING,
-    };
-    use shared::parser_combiner::Parser;
+    use super::*;
 
     #[test]
     fn test_string_literal() {

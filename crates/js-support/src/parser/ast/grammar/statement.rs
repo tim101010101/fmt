@@ -1,22 +1,11 @@
-use crate::ast::grammar::{
-    binary_expr, block, empty_node, expr, expr_node, id,
-    list, single_token,
+use crate::{
+    parser::{
+        ast::{grammar::*, Node, Node::*},
+        TokenStream,
+    },
+    syntax_kind::*,
+    T,
 };
-use crate::ast::{
-    CaseStatement, DefaultStatement, Empty, ForStatement,
-    FunctionDeclaStatement, Id, IfStatement, Node,
-    SwitchStatement, VariableDeclaStatement,
-    WhileStatement,
-};
-use crate::lex::TokenStream;
-use crate::syntax_kind::{
-    BREAK_KW, CASE_KW, CASE_STAT, DEFAULT_CASE_STAT,
-    DEFAULT_KW, DEFINATOR, ELSE_KW, FOR_KW, FOR_STAT,
-    FUNCTION_DECLA_STAT, FUNCTION_KW, ID, IF_KW, IF_STAT,
-    SWITCH_KW, SWITCH_STAT, VARIABLE_DECLA_STAT, WHILE_KW,
-    WHILE_STAT,
-};
-use crate::T;
 use shared::parser_combiner::{
     between, choice, either, left, one_or_more, pair,
     right, seq_by, series, zero_or_more, zero_or_one,
@@ -405,26 +394,8 @@ pub fn stat_block(
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::grammar::statement::{
-        declaration_stat, for_stat, for_stat_args, if_stat,
-        stat, switch_stat, while_stat,
-    };
-    use crate::ast::{
-        AssignmentExpr, BinaryExpr, CaseStatement,
-        DefaultStatement, Empty, ForStatement,
-        FunctionDeclaStatement, Id, IfStatement, Node,
-        NumberLiteral, SwitchStatement, UnaryExpr,
-        VariableDeclaStatement, WhileStatement,
-    };
-    use crate::lex;
-    use crate::syntax_kind::{
-        ASSIGNMENT_EXPR, BINARY_EXPR, CASE_STAT,
-        DEFAULT_CASE_STAT, EQEQ, EQEQEQ, FOR_STAT,
-        FUNCTION_DECLA_STAT, ID, IF_STAT, LTEQ, NUMBER,
-        PLUSPLUS, SWITCH_STAT, UNARY_EXPR,
-        VARIABLE_DECLA_STAT, WHILE_STAT,
-    };
-    use shared::parser_combiner::Parser;
+    use super::*;
+    use crate::parser::lex;
 
     fn get_id() -> (Box<Node>, Box<Node>, Box<Node>) {
         let foo = Box::new(Id {

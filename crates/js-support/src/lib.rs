@@ -1,34 +1,12 @@
-mod grammar;
-mod node;
-mod tree;
-
-use crate::lex::TokenStream;
-pub use grammar::root;
-pub use node::{BoxedNode, Node, Node::*};
-use shared::parser_combiner::Parser;
-
-pub fn syntax(
-    token_stream: TokenStream,
-) -> Result<Node, String> {
-    match root().parse(token_stream) {
-        Ok((_, node)) => Ok(node),
-        Err(_) => Err("Parsing failed".to_string()),
-    }
-}
+mod parser;
+mod syntax_kind;
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{
-        BinaryExpr, FunctionCallExpr,
-        FunctionDeclaStatement, Id, Root, StringLiteral,
-        ValueAccessExpr, VariableDeclaStatement,
+    use crate::{
+        parser::{lex, syntax, Node::*},
+        syntax_kind::*,
     };
-    use crate::syntax_kind::{
-        BINARY_EXPR, FUNCTION_CALL_EXPR,
-        FUNCTION_DECLA_STAT, ID, PLUS, ROOT, STRING,
-        VALUE_ACCESS_EXPR, VARIABLE_DECLA_STAT,
-    };
-    use crate::{lex, syntax};
 
     #[test]
     fn smoke_test() {

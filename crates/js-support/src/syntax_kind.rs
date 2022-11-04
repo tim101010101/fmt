@@ -216,7 +216,7 @@ macro_rules! T {
 
 #[cfg(test)]
 mod tests {
-    use crate::syntax_kind::{FUNCTION_KW, SEMI};
+    use crate::syntax_kind::*;
 
     #[test]
     fn test_macro() {
