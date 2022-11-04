@@ -1,5 +1,5 @@
 use crate::parser_combiner::traits::Parser;
-use crate::parser_combiner::BoxedParser;
+use crate::parser_combiner::{BoxedParser, ParserResult};
 use std::fmt::Debug;
 
 pub fn pair<'input, Input, P1, P2, O1, O2>(
@@ -460,7 +460,7 @@ mod tests {
     use crate::parser_combiner::traits::Parser;
     use crate::parser_combiner::{
         between, chainl, chainl1, choice, seq_by, series,
-        zero_or_one,
+        single_literal, zero_or_one,
     };
 
     #[derive(

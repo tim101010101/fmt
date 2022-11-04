@@ -406,12 +406,12 @@ mod tests {
         let foo = StringLiteral {
             kind: STRING,
             value: "foo".to_string(),
-            raw: "foo".to_string(),
+            raw: "\"foo\"".to_string(),
         };
         let bar = StringLiteral {
             kind: STRING,
             value: "bar".to_string(),
-            raw: "bar".to_string(),
+            raw: "\"bar\"".to_string(),
         };
 
         let input = vec![
@@ -425,8 +425,8 @@ mod tests {
 
         let input = vec![
             (OPEN_BRACE, "{".to_string()),
-            (STRING, "foo".to_string()),
-            (STRING, "bar".to_string()),
+            (STRING, "\"foo\"".to_string()),
+            (STRING, "\"bar\"".to_string()),
             (CLOSE_BRACE, "}".to_string()),
         ];
         assert_eq!(
