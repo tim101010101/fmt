@@ -1,58 +1,36 @@
-use crate::parser::ast::node::{Node, Node::*};
+use crate::parser::ast::node::{Expr, Literal, Node, Stat};
 
-// mod visitor {
-//     use super::*;
-//
-//     pub(crate) trait Visitor {
-//         fn visit(&mut self, n: &Node) {
-//             match n {
-//                 Root { .. } => self.visit_root(n),
-//
-//                 Id { .. }
-//                 | StringLiteral { .. }
-//                 | NumberLiteral { .. }
-//                 | ObjectLiteral { .. }
-//                 | ArrayLiteral { .. } => {
-//                     self.visit_literal(n)
-//                 }
-//
-//                 UnaryExpr { .. }
-//                 | BinaryExpr { .. }
-//                 | TernaryExpr { .. }
-//                 | AssignmentExpr { .. }
-//                 | ValueAccessExpr { .. }
-//                 | FunctionCallExpr { .. }
-//                 | ReturnExpr { .. } => self.visit_expr(n),
-//
-//                 VariableDeclaStatement { .. }
-//                 | FunctionDeclaStatement { .. }
-//                 | IfStatement { .. }
-//                 | SwitchStatement { .. }
-//                 | CaseStatement { .. }
-//                 | DefaultStatement { .. }
-//                 | ForStatement { .. }
-//                 | WhileStatement { .. } => {
-//                     self.visit_stat(n)
-//                 }
-//
-//                 // TODO
-//                 _ => panic!(),
-//             }
-//         }
-//
-//         fn visit_root(&mut self, n: &Node) {
-//             match n {
-//                 Root { statements, .. } => statements
-//                     .iter()
-//                     .for_each(|node| self.visit(node)),
-//                 // TODO
-//                 _ => {}
-//             }
-//         }
-//         fn visit_literal(&mut self, n: &Node);
-//         fn visit_expr(&mut self, n: &Node);
-//         fn visit_stat(&mut self, n: &Node);
-//     }
-// }
-//
+mod visitor {
+    use super::*;
+
+    pub(crate) trait Visitor {
+        fn visit(&mut self, n: &Node) {
+            match n {
+                Node::Root { statements, .. } => {
+                    self.visit_root(statements)
+                }
+
+                Node::Literal(l) => self.visit_literal(l),
+                Node::Expr(e) => self.visit_expr(e),
+                Node::Stat(s) => self.visit_stat(s),
+
+                // TODO
+                _ => panic!(),
+            }
+        }
+        fn visit_root(
+            &mut self,
+            statements: &Vec<Box<Node>>,
+        ) {
+            statements
+                .iter()
+                .for_each(|node| self.visit(node))
+        }
+
+        fn visit_literal(&mut self, n: &Literal);
+        fn visit_expr(&mut self, n: &Expr);
+        fn visit_stat(&mut self, n: &Stat);
+    }
+}
+
 mod visiable {}
