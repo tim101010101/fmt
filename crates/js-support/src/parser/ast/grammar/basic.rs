@@ -201,6 +201,10 @@ where
 mod tests {
     use super::*;
     use crate::parser::ast::grammar::literal;
+    use crate::parser::ast::node::literal_node;
+    use crate::parser::ast::Literal::{
+        NumberLiteral, StringLiteral,
+    };
 
     #[test]
     fn test_single_token() {
@@ -294,6 +298,12 @@ mod tests {
 
     #[test]
     fn test_list() {
+        let one = literal_node(NumberLiteral {
+            kind: NUMBER,
+            value: 1,
+            raw: "1".to_string(),
+        });
+
         let input = vec![
             (OPEN_PAREN, "(".to_string()),
             (CLOSE_PAREN, ")".to_string()),
@@ -314,14 +324,7 @@ mod tests {
             (CLOSE_PAREN, ")".to_string()),
         ];
         assert_eq!(
-            Ok((
-                vec![],
-                vec![NumberLiteral {
-                    kind: NUMBER,
-                    value: 1,
-                    raw: "1".to_string()
-                }]
-            )),
+            Ok((vec![], vec![one.clone()])),
             list(
                 single_token(T!["("]),
                 literal(),
@@ -342,23 +345,7 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                vec![
-                    NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
-                    },
-                    NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
-                    },
-                    NumberLiteral {
-                        kind: NUMBER,
-                        value: 1,
-                        raw: "1".to_string()
-                    }
-                ]
+                vec![one.clone(), one.clone(), one.clone()]
             )),
             list(
                 single_token(T!["("]),
@@ -391,16 +378,16 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let foo = StringLiteral {
+        let foo = literal_node(StringLiteral {
             kind: STRING,
             value: "foo".to_string(),
             raw: "\"foo\"".to_string(),
-        };
-        let bar = StringLiteral {
+        });
+        let bar = literal_node(StringLiteral {
             kind: STRING,
             value: "bar".to_string(),
             raw: "\"bar\"".to_string(),
-        };
+        });
 
         let input = vec![
             (OPEN_BRACE, "{".to_string()),

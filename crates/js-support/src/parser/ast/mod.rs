@@ -3,7 +3,8 @@ mod node;
 mod tree;
 mod visit;
 
-pub use node::Node;
+pub(crate) use node::{expr_node, literal_node, stat_node};
+pub use node::{Expr, Literal, Node, Stat};
 
 use crate::parser::TokenStream;
 use grammar::root;

@@ -1,6 +1,8 @@
+use crate::parser::ast::node::literal_node;
+use crate::parser::ast::Literal::Id;
 use crate::{
     parser::{
-        ast::{grammar::*, Node, Node::*},
+        ast::{grammar::*, node::expr_node, Expr::*, Node},
         LexedToken, TokenStream,
     },
     syntax_kind::*,
@@ -11,7 +13,7 @@ use shared::parser_combiner::{
     Parser,
 };
 
-pub fn expr_node(
+pub fn boxed_expr_node(
 ) -> impl Parser<'static, TokenStream, Box<Node>> {
     expr().map(|n| Box::new(n))
 }
@@ -25,9 +27,11 @@ pub fn expr() -> impl Parser<'static, TokenStream, Node> {
 pub fn return_expr(
 ) -> impl Parser<'static, TokenStream, Node> {
     single_token(RETURN_KW).and_then(|_| {
-        assignment_expr().map(|expr| ReturnExpr {
-            kind: RETURN_EXPR,
-            expr: Box::new(expr),
+        assignment_expr().map(|expr| {
+            expr_node(ReturnExpr {
+                kind: RETURN_EXPR,
+                expr: Box::new(expr),
+            })
         })
     })
 }
@@ -41,7 +45,7 @@ pub fn assignment_expr(
         cur: usize,
     ) -> Node {
         if let Some(right) = right_list.get(cur) {
-            AssignmentExpr {
+            expr_node(AssignmentExpr {
                 kind: ASSIGNMENT_EXPR,
                 left: Box::new(left),
                 right: Box::new(build_node(
@@ -49,7 +53,7 @@ pub fn assignment_expr(
                     right_list,
                     cur + 1,
                 )),
-            }
+            })
         } else {
             left
         }
@@ -89,12 +93,16 @@ pub fn ternary_expr(
         )
         .map(move |res| match res {
             None => condition.to_owned(),
-            Some((then_expr, else_expr)) => TernaryExpr {
-                kind: TERNARY_EXPR,
-                condition: Box::new(condition.to_owned()),
-                then_expr: Box::new(then_expr),
-                else_expr: Box::new(else_expr),
-            },
+            Some((then_expr, else_expr)) => {
+                expr_node(TernaryExpr {
+                    kind: TERNARY_EXPR,
+                    condition: Box::new(
+                        condition.to_owned(),
+                    ),
+                    then_expr: Box::new(then_expr),
+                    else_expr: Box::new(else_expr),
+                })
+            }
         })
     })
 }
@@ -107,14 +115,14 @@ fn build_binary_expr_node(
         0 => expr,
         _ => {
             let (op, right) = node_list.pop().unwrap();
-            BinaryExpr {
+            expr_node(BinaryExpr {
                 kind: BINARY_EXPR,
                 left: Box::new(build_binary_expr_node(
                     expr, node_list,
                 )),
                 op,
                 right: Box::new(right),
-            }
+            })
         }
     }
 }
@@ -249,7 +257,7 @@ pub fn unary_expr(
         prefix: bool,
     ) -> Node {
         if let Some((op, _)) = op_list.get(cur) {
-            UnaryExpr {
+            expr_node(UnaryExpr {
                 kind: UNARY_EXPR,
                 prefix,
                 op: op.to_owned(),
@@ -259,7 +267,7 @@ pub fn unary_expr(
                     cur + 1,
                     prefix,
                 )),
-            }
+            })
         } else {
             expr
         }
@@ -314,14 +322,14 @@ pub fn function_call_expr(
         mut args: Vec<Vec<Node>>,
     ) -> Node {
         if let Some(args_list) = args.pop() {
-            FunctionCallExpr {
+            expr_node(FunctionCallExpr {
                 kind: FUNCTION_CALL_EXPR,
                 callee: Box::new(build_node(expr, args)),
                 args: args_list
                     .iter()
                     .map(|n| Box::new(n.to_owned()))
                     .collect(),
-            }
+            })
         } else {
             expr
         }
@@ -349,13 +357,13 @@ pub fn value_access_expr(
     )
     .map(|path| match path.len() {
         1 => path.get(0).unwrap().to_owned(),
-        _ => ValueAccessExpr {
+        _ => expr_node(ValueAccessExpr {
             kind: VALUE_ACCESS_EXPR,
             path: path
                 .iter()
                 .map(|n| Box::new(n.to_owned()))
                 .collect(),
-        },
+        }),
     })
 }
 
@@ -364,8 +372,9 @@ pub fn factor() -> impl Parser<'static, TokenStream, Node> {
     either(
         either(
             literal(),
-            single_token(ID)
-                .map(|(_, name)| Id { kind: ID, name }),
+            single_token(ID).map(|(_, name)| {
+                literal_node(Id { kind: ID, name })
+            }),
         ),
         // TODO there's a bug in `between`
         single_token(T!["("])
@@ -385,63 +394,113 @@ pub fn factor() -> impl Parser<'static, TokenStream, Node> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::ast::Literal::*;
 
     fn get_number(
     ) -> (Box<Node>, Box<Node>, Box<Node>, Box<Node>) {
-        let one = Box::new(NumberLiteral {
+        let one = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 1,
             raw: "1".to_string(),
-        });
-        let two = Box::new(NumberLiteral {
+        }));
+        let two = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 2,
             raw: "2".to_string(),
-        });
-        let three = Box::new(NumberLiteral {
+        }));
+        let three = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 3,
             raw: "3".to_string(),
-        });
-        let four = Box::new(NumberLiteral {
+        }));
+        let four = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 4,
             raw: "4".to_string(),
-        });
+        }));
         (one, two, three, four)
+    }
+    fn get_id() -> (Box<Node>, Box<Node>) {
+        let foo_id = Box::new(literal_node(Id {
+            kind: ID,
+            name: "foo".to_string(),
+        }));
+        let bar_id = Box::new(literal_node(Id {
+            kind: ID,
+            name: "bar".to_string(),
+        }));
+        (foo_id, bar_id)
+    }
+    fn get_string() -> (Box<Node>, Box<Node>, Box<Node>) {
+        let foo = Box::new(literal_node(StringLiteral {
+            kind: STRING,
+            value: "foo".to_string(),
+            raw: "\"foo\"".to_string(),
+        }));
+        let bar = Box::new(literal_node(StringLiteral {
+            kind: STRING,
+            value: "bar".to_string(),
+            raw: "\"bar\"".to_string(),
+        }));
+        let baz = Box::new(literal_node(StringLiteral {
+            kind: STRING,
+            value: "baz".to_string(),
+            raw: "\"baz\"".to_string(),
+        }));
+        (foo, bar, baz)
     }
 
     #[test]
     fn test_priority() {
         let (one, two, three, four) = get_number();
-        let five = Box::new(NumberLiteral {
+        let five = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 5,
             raw: "5".to_string(),
-        });
-        let six = Box::new(NumberLiteral {
+        }));
+        let six = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 6,
             raw: "6".to_string(),
-        });
-        let foo = Box::new(Id {
+        }));
+        let foo = Box::new(literal_node(Id {
             kind: ID,
             name: "foo".to_string(),
-        });
-        let bar = Box::new(Id {
+        }));
+        let bar = Box::new(literal_node(Id {
             kind: ID,
             name: "bar".to_string(),
-        });
-        let foo_str = Box::new(StringLiteral {
-            kind: STRING,
-            value: "foo".to_string(),
-            raw: "foo".to_string(),
-        });
-        let bar_str = Box::new(StringLiteral {
-            kind: STRING,
-            value: "bar".to_string(),
-            raw: "bar".to_string(),
-        });
+        }));
+        let foo_str =
+            Box::new(literal_node(StringLiteral {
+                kind: STRING,
+                value: "foo".to_string(),
+                raw: "foo".to_string(),
+            }));
+        let bar_str =
+            Box::new(literal_node(StringLiteral {
+                kind: STRING,
+                value: "bar".to_string(),
+                raw: "bar".to_string(),
+            }));
+        let plusplus_one = Box::new(expr_node(UnaryExpr {
+            kind: UNARY_EXPR,
+            prefix: true,
+            op: PLUSPLUS,
+            expr: one.clone(),
+        }));
+        let plusplus_two = Box::new(expr_node(UnaryExpr {
+            kind: UNARY_EXPR,
+            prefix: true,
+            op: PLUSPLUS,
+            expr: two.clone(),
+        }));
+        let one_plusplus = Box::new(expr_node(UnaryExpr {
+            kind: UNARY_EXPR,
+            prefix: false,
+            op: PLUSPLUS,
+            expr: one.clone(),
+        }));
 
         // ++1 + 2
         let input = vec![
@@ -454,17 +513,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
-                    left: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: true,
-                        op: PLUSPLUS,
-                        expr: one.clone()
-                    }),
+                    left: plusplus_one.clone(),
                     op: PLUS,
                     right: two.clone()
-                }
+                })
             )),
             expr().parse(input)
         );
@@ -484,22 +538,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
-                    left: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: true,
-                        op: PLUSPLUS,
-                        expr: one.clone()
-                    }),
+                    left: plusplus_one.clone(),
                     op: PLUS,
-                    right: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: true,
-                        op: PLUSPLUS,
-                        expr: two.clone()
-                    })
-                }
+                    right: plusplus_two.clone()
+                })
             )),
             expr().parse(input)
         );
@@ -519,22 +563,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
-                    left: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: false,
-                        op: PLUSPLUS,
-                        expr: one.clone()
-                    }),
+                    left: one_plusplus.clone(),
                     op: PLUS,
-                    right: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: true,
-                        op: PLUSPLUS,
-                        expr: two.clone()
-                    })
-                }
+                    right: plusplus_two.clone()
+                })
             )),
             expr().parse(input)
         );
@@ -551,17 +585,17 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
-                    left: Box::new(BinaryExpr {
+                    left: Box::new(expr_node(BinaryExpr {
                         kind: BINARY_EXPR,
                         left: one.clone(),
                         op: LTLT,
                         right: two.clone()
-                    }),
+                    })),
                     op: PLUS,
                     right: three.clone()
-                }
+                })
             )),
             expr().parse(input)
         );
@@ -578,17 +612,17 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
-                    left: Box::new(BinaryExpr {
+                    left: Box::new(expr_node(BinaryExpr {
                         kind: BINARY_EXPR,
                         left: one.clone(),
                         op: LTLT,
                         right: two.clone()
-                    }),
+                    })),
                     op: STAR,
                     right: three.clone()
-                }
+                })
             )),
             expr().parse(input)
         );
@@ -607,17 +641,19 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
                     left: one.clone(),
                     op: LTLT,
-                    right: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: two.clone(),
-                        op: PLUS,
-                        right: three.clone()
-                    })
-                }
+                    right: Box::new(expr_node(
+                        BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: two.clone(),
+                            op: PLUS,
+                            right: three.clone()
+                        }
+                    ))
+                })
             )),
             expr().parse(input)
         );
@@ -639,27 +675,33 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                TernaryExpr {
+                expr_node(TernaryExpr {
                     kind: TERNARY_EXPR,
-                    condition: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: one.clone(),
-                        op: LT,
-                        right: two.clone()
-                    }),
-                    then_expr: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: three.clone(),
-                        op: PLUS,
-                        right: four.clone()
-                    }),
-                    else_expr: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: false,
-                        op: PLUSPLUS,
-                        expr: five.clone()
-                    })
-                }
+                    condition: Box::new(expr_node(
+                        BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: one.clone(),
+                            op: LT,
+                            right: two.clone()
+                        }
+                    )),
+                    then_expr: Box::new(expr_node(
+                        BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: three.clone(),
+                            op: PLUS,
+                            right: four.clone()
+                        }
+                    )),
+                    else_expr: Box::new(expr_node(
+                        UnaryExpr {
+                            kind: UNARY_EXPR,
+                            prefix: false,
+                            op: PLUSPLUS,
+                            expr: five.clone()
+                        }
+                    ))
+                })
             )),
             expr().parse(input)
         );
@@ -675,17 +717,19 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                FunctionCallExpr {
+                expr_node(FunctionCallExpr {
                     kind: FUNCTION_CALL_EXPR,
-                    callee: Box::new(ValueAccessExpr {
-                        kind: VALUE_ACCESS_EXPR,
-                        path: vec![
-                            foo.clone(),
-                            bar.clone()
-                        ]
-                    }),
+                    callee: Box::new(expr_node(
+                        ValueAccessExpr {
+                            kind: VALUE_ACCESS_EXPR,
+                            path: vec![
+                                foo.clone(),
+                                bar.clone()
+                            ]
+                        }
+                    )),
                     args: vec![]
-                }
+                })
             )),
             expr().parse(input)
         );
@@ -702,10 +746,10 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ReturnExpr {
+                expr_node(ReturnExpr {
                     kind: RETURN_EXPR,
                     expr: one.clone()
-                }
+                })
             )),
             return_expr().parse(input)
         );
@@ -719,15 +763,15 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ReturnExpr {
+                expr_node(ReturnExpr {
                     kind: RETURN_EXPR,
-                    expr: Box::new(BinaryExpr {
+                    expr: Box::new(expr_node(BinaryExpr {
                         kind: BINARY_EXPR,
                         left: one.clone(),
                         op: PLUS,
                         right: two.clone()
-                    })
-                }
+                    }))
+                })
             )),
             return_expr().parse(input)
         );
@@ -745,11 +789,11 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                AssignmentExpr {
+                expr_node(AssignmentExpr {
                     kind: ASSIGNMENT_EXPR,
                     left: one.clone(),
                     right: two.clone()
-                }
+                })
             )),
             assignment_expr().parse(input)
         );
@@ -764,15 +808,17 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                AssignmentExpr {
+                expr_node(AssignmentExpr {
                     kind: ASSIGNMENT_EXPR,
                     left: one.clone(),
-                    right: Box::new(AssignmentExpr {
-                        kind: ASSIGNMENT_EXPR,
-                        left: two.clone(),
-                        right: three.clone()
-                    })
-                }
+                    right: Box::new(expr_node(
+                        AssignmentExpr {
+                            kind: ASSIGNMENT_EXPR,
+                            left: two.clone(),
+                            right: three.clone()
+                        }
+                    ))
+                })
             )),
             assignment_expr().parse(input)
         );
@@ -781,21 +827,21 @@ mod tests {
     #[test]
     fn test_ternary_expr() {
         let (one, two, three, four) = get_number();
-        let five = Box::new(NumberLiteral {
+        let five = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 5,
             raw: "5".to_string(),
-        });
-        let six = Box::new(NumberLiteral {
+        }));
+        let six = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 6,
             raw: "6".to_string(),
-        });
-        let seven = Box::new(NumberLiteral {
+        }));
+        let seven = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 7,
             raw: "7".to_string(),
-        });
+        }));
 
         let input = vec![
             (NUMBER, "1".to_string()),
@@ -810,17 +856,19 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                TernaryExpr {
+                expr_node(TernaryExpr {
                     kind: TERNARY_EXPR,
-                    condition: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: one.clone(),
-                        op: EQEQ,
-                        right: one.clone()
-                    }),
+                    condition: Box::new(expr_node(
+                        BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: one.clone(),
+                            op: EQEQ,
+                            right: one.clone()
+                        }
+                    )),
                     then_expr: two.clone(),
                     else_expr: three.clone()
-                }
+                })
             )),
             ternary_expr().parse(input)
         );
@@ -845,27 +893,33 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                TernaryExpr {
+                expr_node(TernaryExpr {
                     kind: TERNARY_EXPR,
-                    condition: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: one.clone(),
-                        op: EQEQ,
-                        right: one.clone()
-                    }),
+                    condition: Box::new(expr_node(
+                        BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: one.clone(),
+                            op: EQEQ,
+                            right: one.clone()
+                        }
+                    )),
                     then_expr: two.clone(),
-                    else_expr: Box::new(TernaryExpr {
-                        kind: TERNARY_EXPR,
-                        condition: Box::new(BinaryExpr {
-                            kind: BINARY_EXPR,
-                            left: three.clone(),
-                            op: EQEQ,
-                            right: three.clone()
-                        }),
-                        then_expr: four.clone(),
-                        else_expr: five.clone()
-                    })
-                }
+                    else_expr: Box::new(expr_node(
+                        TernaryExpr {
+                            kind: TERNARY_EXPR,
+                            condition: Box::new(expr_node(
+                                BinaryExpr {
+                                    kind: BINARY_EXPR,
+                                    left: three.clone(),
+                                    op: EQEQ,
+                                    right: three.clone()
+                                }
+                            )),
+                            then_expr: four.clone(),
+                            else_expr: five.clone()
+                        }
+                    ))
+                })
             )),
             ternary_expr().parse(input)
         );
@@ -890,27 +944,33 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                TernaryExpr {
+                expr_node(TernaryExpr {
                     kind: TERNARY_EXPR,
-                    condition: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: one.clone(),
-                        op: EQEQ,
-                        right: one.clone()
-                    }),
-                    then_expr: Box::new(TernaryExpr {
-                        kind: TERNARY_EXPR,
-                        condition: Box::new(BinaryExpr {
+                    condition: Box::new(expr_node(
+                        BinaryExpr {
                             kind: BINARY_EXPR,
-                            left: two.clone(),
+                            left: one.clone(),
                             op: EQEQ,
-                            right: two.clone()
-                        }),
-                        then_expr: three.clone(),
-                        else_expr: four.clone()
-                    }),
+                            right: one.clone()
+                        }
+                    )),
+                    then_expr: Box::new(expr_node(
+                        TernaryExpr {
+                            kind: TERNARY_EXPR,
+                            condition: Box::new(expr_node(
+                                BinaryExpr {
+                                    kind: BINARY_EXPR,
+                                    left: two.clone(),
+                                    op: EQEQ,
+                                    right: two.clone()
+                                }
+                            )),
+                            then_expr: three.clone(),
+                            else_expr: four.clone()
+                        }
+                    )),
                     else_expr: five.clone()
-                }
+                })
             )),
             ternary_expr().parse(input)
         );
@@ -942,37 +1002,47 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                TernaryExpr {
+                expr_node(TernaryExpr {
                     kind: TERNARY_EXPR,
-                    condition: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: one.clone(),
-                        op: EQEQ,
-                        right: one.clone()
-                    }),
-                    then_expr: Box::new(TernaryExpr {
-                        kind: TERNARY_EXPR,
-                        condition: Box::new(BinaryExpr {
+                    condition: Box::new(expr_node(
+                        BinaryExpr {
                             kind: BINARY_EXPR,
-                            left: two.clone(),
+                            left: one.clone(),
                             op: EQEQ,
-                            right: two.clone()
-                        }),
-                        then_expr: three.clone(),
-                        else_expr: four.clone()
-                    }),
-                    else_expr: Box::new(TernaryExpr {
-                        kind: TERNARY_EXPR,
-                        condition: Box::new(BinaryExpr {
-                            kind: BINARY_EXPR,
-                            left: five.clone(),
-                            op: EQEQ,
-                            right: five.clone()
-                        }),
-                        then_expr: six.clone(),
-                        else_expr: seven.clone()
-                    })
-                }
+                            right: one.clone()
+                        }
+                    )),
+                    then_expr: Box::new(expr_node(
+                        TernaryExpr {
+                            kind: TERNARY_EXPR,
+                            condition: Box::new(expr_node(
+                                BinaryExpr {
+                                    kind: BINARY_EXPR,
+                                    left: two.clone(),
+                                    op: EQEQ,
+                                    right: two.clone()
+                                }
+                            )),
+                            then_expr: three.clone(),
+                            else_expr: four.clone()
+                        }
+                    )),
+                    else_expr: Box::new(expr_node(
+                        TernaryExpr {
+                            kind: TERNARY_EXPR,
+                            condition: Box::new(expr_node(
+                                BinaryExpr {
+                                    kind: BINARY_EXPR,
+                                    left: five.clone(),
+                                    op: EQEQ,
+                                    right: five.clone()
+                                }
+                            )),
+                            then_expr: six.clone(),
+                            else_expr: seven.clone()
+                        }
+                    ))
+                })
             )),
             ternary_expr().parse(input)
         );
@@ -990,12 +1060,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
                     left: one.clone(),
                     op: PLUS,
                     right: two.clone()
-                }
+                })
             )),
             binary_expr().parse(input)
         );
@@ -1010,17 +1080,17 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
-                    left: Box::new(BinaryExpr {
+                    left: Box::new(expr_node(BinaryExpr {
                         kind: BINARY_EXPR,
                         left: one.clone(),
                         op: PLUS,
                         right: two.clone()
-                    }),
+                    })),
                     op: PLUS,
                     right: three.clone()
-                }
+                })
             )),
             binary_expr().parse(input)
         );
@@ -1035,17 +1105,19 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
                     left: one.clone(),
                     op: PLUS,
-                    right: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: two.clone(),
-                        op: STAR,
-                        right: three.clone()
-                    })
-                }
+                    right: Box::new(expr_node(
+                        BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: two.clone(),
+                            op: STAR,
+                            right: three.clone()
+                        }
+                    ))
+                })
             )),
             binary_expr().parse(input)
         );
@@ -1061,17 +1133,19 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
                     left: one.clone(),
                     op: EQEQ,
-                    right: Box::new(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: two.clone(),
-                        op: PLUS,
-                        right: three.clone()
-                    })
-                }
+                    right: Box::new(expr_node(
+                        BinaryExpr {
+                            kind: BINARY_EXPR,
+                            left: two.clone(),
+                            op: PLUS,
+                            right: three.clone()
+                        }
+                    ))
+                })
             )),
             binary_expr().parse(input)
         );
@@ -1088,17 +1162,17 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                BinaryExpr {
+                expr_node(BinaryExpr {
                     kind: BINARY_EXPR,
-                    left: Box::new(BinaryExpr {
+                    left: Box::new(expr_node(BinaryExpr {
                         kind: BINARY_EXPR,
                         left: one.clone(),
                         op: PLUS,
                         right: two.clone()
-                    }),
+                    })),
                     op: STAR,
                     right: three.clone()
-                }
+                })
             )),
             binary_expr().parse(input)
         );
@@ -1107,6 +1181,18 @@ mod tests {
     #[test]
     fn test_unary_expr() {
         let (one, _, _, _) = get_number();
+        let one_plusplus = Box::new(expr_node(UnaryExpr {
+            kind: UNARY_EXPR,
+            prefix: false,
+            op: PLUSPLUS,
+            expr: one.clone(),
+        }));
+        let plusplus_one = Box::new(expr_node(UnaryExpr {
+            kind: UNARY_EXPR,
+            prefix: true,
+            op: PLUSPLUS,
+            expr: one.clone(),
+        }));
 
         let input = vec![
             (NUMBER, "1".to_string()),
@@ -1116,12 +1202,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                UnaryExpr {
+                expr_node(UnaryExpr {
                     kind: UNARY_EXPR,
                     prefix: false,
                     op: PLUSPLUS,
                     expr: one.clone()
-                }
+                })
             )),
             unary_expr().parse(input)
         );
@@ -1134,12 +1220,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                UnaryExpr {
+                expr_node(UnaryExpr {
                     kind: UNARY_EXPR,
                     prefix: false,
                     op: PLUSPLUS,
                     expr: one.clone()
-                }
+                })
             )),
             unary_expr().parse(input)
         );
@@ -1154,17 +1240,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                UnaryExpr {
+                expr_node(UnaryExpr {
                     kind: UNARY_EXPR,
                     prefix: true,
                     op: PLUSPLUS,
-                    expr: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: false,
-                        op: PLUSPLUS,
-                        expr: one.clone()
-                    })
-                }
+                    expr: one_plusplus.clone()
+                })
             )),
             unary_expr().parse(input)
         );
@@ -1179,17 +1260,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                UnaryExpr {
+                expr_node(UnaryExpr {
                     kind: UNARY_EXPR,
                     prefix: false,
                     op: PLUSPLUS,
-                    expr: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: false,
-                        op: PLUSPLUS,
-                        expr: one.clone()
-                    })
-                }
+                    expr: one_plusplus.clone()
+                })
             )),
             unary_expr().parse(input)
         );
@@ -1204,17 +1280,12 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                UnaryExpr {
+                expr_node(UnaryExpr {
                     kind: UNARY_EXPR,
                     prefix: true,
                     op: PLUSPLUS,
-                    expr: Box::new(UnaryExpr {
-                        kind: UNARY_EXPR,
-                        prefix: true,
-                        op: PLUSPLUS,
-                        expr: one.clone()
-                    })
-                }
+                    expr: plusplus_one.clone()
+                })
             )),
             unary_expr().parse(input)
         );
@@ -1222,6 +1293,9 @@ mod tests {
 
     #[test]
     fn test_function_call() {
+        let (foo_id, bar_id) = get_id();
+        let (_, bar, baz) = get_string();
+
         let input = vec![
             (ID, "foo".to_string()),
             (OPEN_PAREN, "(".to_string()),
@@ -1230,14 +1304,11 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                FunctionCallExpr {
+                expr_node(FunctionCallExpr {
                     kind: FUNCTION_CALL_EXPR,
-                    callee: Box::new(Id {
-                        kind: ID,
-                        name: "foo".to_string()
-                    }),
+                    callee: foo_id.clone(),
                     args: vec![]
-                }
+                })
             )),
             function_call_expr().parse(input)
         );
@@ -1253,25 +1324,11 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                FunctionCallExpr {
+                expr_node(FunctionCallExpr {
                     kind: FUNCTION_CALL_EXPR,
-                    callee: Box::new(Id {
-                        kind: ID,
-                        name: "foo".to_string()
-                    }),
-                    args: vec![
-                        Box::new(StringLiteral {
-                            kind: STRING,
-                            value: "bar".to_string(),
-                            raw: "\"bar\"".to_string()
-                        }),
-                        Box::new(StringLiteral {
-                            kind: STRING,
-                            value: "baz".to_string(),
-                            raw: "\"baz\"".to_string()
-                        })
-                    ]
-                }
+                    callee: foo_id.clone(),
+                    args: vec![bar.clone(), baz.clone()]
+                })
             )),
             function_call_expr().parse(input)
         );
@@ -1286,18 +1343,17 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                FunctionCallExpr {
+                expr_node(FunctionCallExpr {
                     kind: FUNCTION_CALL_EXPR,
-                    callee: Box::new(FunctionCallExpr {
-                        kind: FUNCTION_CALL_EXPR,
-                        callee: Box::new(Id {
-                            kind: ID,
-                            name: "foo".to_string()
-                        }),
-                        args: vec![]
-                    }),
+                    callee: Box::new(expr_node(
+                        FunctionCallExpr {
+                            kind: FUNCTION_CALL_EXPR,
+                            callee: foo_id.clone(),
+                            args: vec![]
+                        }
+                    )),
                     args: vec![]
-                }
+                })
             )),
             function_call_expr().parse(input)
         );
@@ -1314,28 +1370,17 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                FunctionCallExpr {
+                expr_node(FunctionCallExpr {
                     kind: FUNCTION_CALL_EXPR,
-                    callee: Box::new(FunctionCallExpr {
-                        kind: FUNCTION_CALL_EXPR,
-                        callee: Box::new(Id {
-                            kind: ID,
-                            name: "foo".to_string()
-                        }),
-                        args: vec![Box::new(
-                            StringLiteral {
-                                kind: STRING,
-                                value: "bar".to_string(),
-                                raw: "\"bar\"".to_string()
-                            }
-                        )]
-                    }),
-                    args: vec![Box::new(StringLiteral {
-                        kind: STRING,
-                        value: "baz".to_string(),
-                        raw: "\"baz\"".to_string()
-                    })]
-                }
+                    callee: Box::new(expr_node(
+                        FunctionCallExpr {
+                            kind: FUNCTION_CALL_EXPR,
+                            callee: foo_id.clone(),
+                            args: vec![bar.clone()]
+                        }
+                    )),
+                    args: vec![baz.clone()]
+                })
             )),
             function_call_expr().parse(input)
         );
@@ -1350,23 +1395,19 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                FunctionCallExpr {
+                expr_node(FunctionCallExpr {
                     kind: FUNCTION_CALL_EXPR,
-                    callee: Box::new(ValueAccessExpr {
-                        kind: VALUE_ACCESS_EXPR,
-                        path: vec![
-                            Box::new(Id {
-                                kind: ID,
-                                name: "foo".to_string()
-                            }),
-                            Box::new(Id {
-                                kind: ID,
-                                name: "bar".to_string()
-                            })
-                        ]
-                    }),
+                    callee: Box::new(expr_node(
+                        ValueAccessExpr {
+                            kind: VALUE_ACCESS_EXPR,
+                            path: vec![
+                                foo_id.clone(),
+                                bar_id.clone()
+                            ]
+                        }
+                    )),
                     args: vec![]
-                }
+                })
             )),
             function_call_expr().parse(input)
         )
@@ -1374,6 +1415,8 @@ mod tests {
 
     #[test]
     fn test_value_access() {
+        let (foo_id, bar_id) = get_id();
+
         let input = vec![
             (ID, "foo".to_string()),
             (DOT, ".".to_string()),
@@ -1382,19 +1425,13 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ValueAccessExpr {
+                expr_node(ValueAccessExpr {
                     kind: VALUE_ACCESS_EXPR,
                     path: vec![
-                        Box::new(Id {
-                            kind: ID,
-                            name: "foo".to_string()
-                        }),
-                        Box::new(Id {
-                            kind: ID,
-                            name: "bar".to_string()
-                        })
+                        foo_id.clone(),
+                        bar_id.clone()
                     ]
-                }
+                })
             )),
             value_access_expr().parse(input)
         )
@@ -1402,15 +1439,18 @@ mod tests {
 
     #[test]
     fn test_factor() {
+        let (foo_id, _) = get_id();
+        let (foo, bar, _) = get_string();
+
         let input = vec![(STRING, "\"foo\"".to_string())];
         assert_eq!(
             Ok((
                 vec![],
-                StringLiteral {
+                literal_node(StringLiteral {
                     kind: STRING,
                     value: "foo".to_string(),
                     raw: "\"foo\"".to_string()
-                }
+                })
             )),
             factor().parse(input)
         );
@@ -1419,10 +1459,10 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                Id {
+                literal_node(Id {
                     kind: ID,
                     name: "foo".to_string()
-                }
+                })
             )),
             factor().parse(input)
         );
@@ -1435,24 +1475,24 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                Id {
+                literal_node(Id {
                     kind: ID,
                     name: "foo".to_string()
-                }
+                })
             )),
             factor().parse(input)
         );
     }
 
     fn issue1() {
-        let foo = Box::new(Id {
+        let foo = Box::new(literal_node(Id {
             kind: ID,
             name: "foo".to_string(),
-        });
-        let bar = Box::new(Id {
+        }));
+        let bar = Box::new(literal_node(Id {
             kind: ID,
             name: "bar".to_string(),
-        });
+        }));
 
         // foo().bar
         let input = vec![
@@ -1465,17 +1505,19 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ValueAccessExpr {
+                expr_node(ValueAccessExpr {
                     kind: VALUE_ACCESS_EXPR,
                     path: vec![
-                        Box::new(FunctionCallExpr {
-                            kind: FUNCTION_CALL_EXPR,
-                            callee: foo.clone(),
-                            args: vec![]
-                        }),
+                        Box::new(expr_node(
+                            FunctionCallExpr {
+                                kind: FUNCTION_CALL_EXPR,
+                                callee: foo.clone(),
+                                args: vec![]
+                            }
+                        )),
                         bar.clone()
                     ]
-                }
+                })
             )),
             expr().parse(input)
         );
@@ -1490,6 +1532,15 @@ mod tests {
             (CLOSE_PAREN, ")".to_string()),
             (CLOSE_PAREN, ")".to_string()),
         ];
-        println!("{:?}", factor().parse(input))
+        assert_eq!(
+            Ok((
+                vec![],
+                literal_node(Id {
+                    kind: ID,
+                    name: "foo".to_string()
+                })
+            )),
+            expr().parse(input)
+        )
     }
 }

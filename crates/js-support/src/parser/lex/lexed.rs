@@ -240,6 +240,15 @@ mod tests {
         let code = "const a = \"Hello World\";".to_string();
         let mut dfa = DFA::new(code);
         dfa.lexed(true);
-        println!("{:?}", dfa.token_stream)
+        assert_eq!(
+            vec![
+                (DEFINATOR, "const".to_string()),
+                (ID, "a".to_string()),
+                (EQ, "=".to_string()),
+                (STRING, "\"Hello World\"".to_string()),
+                (SEMI, ";".to_string())
+            ],
+            dfa.token_stream
+        )
     }
 }

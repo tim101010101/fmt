@@ -1,6 +1,9 @@
 use crate::{
     parser::{
-        ast::{grammar::*, Node, Node::*},
+        ast::{
+            grammar::*, node::literal_node, Literal::*,
+            Node,
+        },
         TokenStream,
     },
     syntax_kind::*,
@@ -14,20 +17,24 @@ use shared::parser_combiner::{
 /// StringLiteral -> STRING
 pub fn string_literal(
 ) -> impl Parser<'static, TokenStream, Node> {
-    single_token(STRING).map(|(_, text)| StringLiteral {
-        kind: STRING,
-        value: text[1..text.len() - 1].to_string(),
-        raw: text,
+    single_token(STRING).map(|(_, text)| {
+        literal_node(StringLiteral {
+            kind: STRING,
+            value: text[1..text.len() - 1].to_string(),
+            raw: text,
+        })
     })
 }
 
 /// NumberLiteral -> NUMBER
 pub fn number_literal(
 ) -> impl Parser<'static, TokenStream, Node> {
-    single_token(NUMBER).map(|(_, value)| NumberLiteral {
-        kind: NUMBER,
-        value: value.parse().unwrap(),
-        raw: value,
+    single_token(NUMBER).map(|(_, value)| {
+        literal_node(NumberLiteral {
+            kind: NUMBER,
+            value: value.parse().unwrap(),
+            raw: value,
+        })
     })
 }
 
@@ -39,9 +46,11 @@ pub fn object_literal(
         attributes(),
         single_token(T!["}"]),
     )
-    .map(|attributes| ObjectLiteral {
-        kind: OBJECT,
-        attributes,
+    .map(|attributes| {
+        literal_node(ObjectLiteral {
+            kind: OBJECT,
+            attributes,
+        })
     })
 }
 
@@ -72,7 +81,12 @@ pub fn array_literal(
         .and_then(|_| {
             left(array_item(), single_token(T!["]"]))
         })
-        .map(|items| ArrayLiteral { kind: ARRAY, items })
+        .map(|items| {
+            literal_node(ArrayLiteral {
+                kind: ARRAY,
+                items,
+            })
+        })
 }
 
 /// ArrayItem -> (Literal | Expr) ("," Literal | Expr) *
@@ -101,69 +115,99 @@ pub fn literal() -> impl Parser<'static, TokenStream, Node>
 
 pub fn id() -> impl Parser<'static, TokenStream, Box<Node>>
 {
-    single_token(ID)
-        .map(|(_, name)| Box::new(Id { kind: ID, name }))
+    single_token(ID).map(|(_, name)| {
+        Box::new(literal_node(Id { kind: ID, name }))
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn get_number() -> (Node, Node) {
+        (
+            literal_node(NumberLiteral {
+                kind: NUMBER,
+                value: 1,
+                raw: "1".to_string(),
+            }),
+            literal_node(NumberLiteral {
+                kind: NUMBER,
+                value: 2,
+                raw: "2".to_string(),
+            }),
+        )
+    }
+    fn get_string() -> (Node, Node) {
+        (
+            literal_node(StringLiteral {
+                kind: STRING,
+                value: "foo".to_string(),
+                raw: "\"foo\"".to_string(),
+            }),
+            literal_node(StringLiteral {
+                kind: STRING,
+                value: "bar".to_string(),
+                raw: "\"bar\"".to_string(),
+            }),
+        )
+    }
+    fn get_id() -> (Node, Node) {
+        (
+            literal_node(Id {
+                kind: ID,
+                name: "foo".to_string(),
+            }),
+            literal_node(Id {
+                kind: ID,
+                name: "bar".to_string(),
+            }),
+        )
+    }
+
     #[test]
     fn test_string_literal() {
-        let input = vec![(STRING, "\"hello\"".to_string())];
+        let (foo, _) = get_string();
+
+        let input = vec![(STRING, "\"foo\"".to_string())];
         assert_eq!(
-            Ok((
-                vec![],
-                StringLiteral {
-                    kind: STRING,
-                    value: "hello".to_string(),
-                    raw: "\"hello\"".to_string()
-                }
-            )),
+            Ok((vec![], foo.clone())),
             string_literal().parse(input)
         )
     }
 
     #[test]
     fn test_number_literal() {
+        let (one, _) = get_number();
+
         let input = vec![(NUMBER, "1".to_string())];
         assert_eq!(
-            Ok((
-                vec![],
-                NumberLiteral {
-                    kind: NUMBER,
-                    value: 1,
-                    raw: "1".to_string()
-                }
-            )),
+            Ok((vec![], one.clone())),
             number_literal().parse(input)
         )
     }
 
     #[test]
     fn test_object_literal() {
+        let (_, bar) = get_string();
+
         let input = vec![
             (OPEN_BRACE, "{".to_string()),
-            (ID, "hello".to_string()),
+            (ID, "foo".to_string()),
             (COLON, ":".to_string()),
-            (STRING, "\"world\"".to_string()),
+            (STRING, "\"bar\"".to_string()),
             (CLOSE_BRACE, "}".to_string()),
         ];
         assert_eq!(
             Ok((
                 vec![],
-                ObjectLiteral {
+                literal_node(ObjectLiteral {
                     kind: OBJECT,
                     attributes: vec![(
-                        "hello".to_string(),
-                        Box::new(StringLiteral {
-                            kind: STRING,
-                            value: "world".to_string(),
-                            raw: "\"world\"".to_string(),
-                        })
+                        "foo".to_string(),
+                        Box::new(bar.clone())
                     )]
-                }
+                })
             )),
             object_literal().parse(input)
         );
@@ -175,47 +219,53 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ObjectLiteral {
+                literal_node(ObjectLiteral {
                     kind: OBJECT,
                     attributes: vec![],
-                }
+                })
             )),
             object_literal().parse(input)
         );
 
         let input = vec![
             (OPEN_BRACE, "{".to_string()),
-            (ID, "hello".to_string()),
+            (ID, "foo".to_string()),
             (COLON, ":".to_string()),
             (OPEN_BRACE, "{".to_string()),
-            (ID, "hello".to_string()),
+            (ID, "bar".to_string()),
             (COLON, ":".to_string()),
-            (STRING, "\"world\"".to_string()),
+            (STRING, "\"foo\"".to_string()),
             (CLOSE_BRACE, "}".to_string()),
             (CLOSE_BRACE, "}".to_string()),
         ];
         assert_eq!(
             Ok((
                 vec![],
-                ObjectLiteral {
+                literal_node(ObjectLiteral {
                     kind: OBJECT,
                     attributes: vec![(
-                        "hello".to_string(),
-                        Box::new(ObjectLiteral {
-                            kind: OBJECT,
-                            attributes: vec![(
-                                "hello".to_string(),
-                                Box::new(StringLiteral {
-                                    kind: STRING,
-                                    value: "world"
-                                        .to_string(),
-                                    raw: "\"world\""
-                                        .to_string(),
-                                })
-                            )],
-                        })
+                        "foo".to_string(),
+                        Box::new(literal_node(
+                            ObjectLiteral {
+                                kind: OBJECT,
+                                attributes: vec![(
+                                    "bar".to_string(),
+                                    Box::new(literal_node(
+                                        StringLiteral {
+                                            kind: STRING,
+                                            value: "foo"
+                                                .to_string(
+                                                ),
+                                            raw: "\"foo\""
+                                                .to_string(
+                                                )
+                                        }
+                                    ))
+                                )],
+                            }
+                        ))
                     )],
-                }
+                })
             )),
             object_literal().parse(input)
         );
@@ -223,6 +273,8 @@ mod tests {
 
     #[test]
     fn test_array_literal() {
+        let (foo, bar) = get_string();
+
         let input = vec![
             (OPEN_BRACKET, "[".to_string()),
             (STRING, "\"foo\"".to_string()),
@@ -233,21 +285,13 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ArrayLiteral {
+                literal_node(ArrayLiteral {
                     kind: ARRAY,
                     items: vec![
-                        Box::new(StringLiteral {
-                            kind: STRING,
-                            value: "foo".to_string(),
-                            raw: "\"foo\"".to_string()
-                        }),
-                        Box::new(StringLiteral {
-                            kind: STRING,
-                            value: "bar".to_string(),
-                            raw: "\"bar\"".to_string()
-                        })
+                        Box::new(foo.clone()),
+                        Box::new(bar.clone())
                     ]
-                }
+                })
             )),
             array_literal().parse(input)
         );
@@ -259,10 +303,10 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ArrayLiteral {
+                literal_node(ArrayLiteral {
                     kind: ARRAY,
                     items: vec![]
-                }
+                })
             )),
             array_literal().parse(input)
         );
@@ -279,28 +323,20 @@ mod tests {
         assert_eq!(
             Ok((
                 vec![],
-                ArrayLiteral {
+                literal_node(ArrayLiteral {
                     kind: ARRAY,
                     items: vec![
-                        Box::new(StringLiteral {
-                            kind: STRING,
-                            value: "foo".to_string(),
-                            raw: "\"foo\"".to_string()
-                        }),
-                        Box::new(ArrayLiteral {
-                            kind: ARRAY,
-                            items: vec![Box::new(
-                                StringLiteral {
-                                    kind: STRING,
-                                    value: "bar"
-                                        .to_string(),
-                                    raw: "\"bar\""
-                                        .to_string()
-                                }
-                            )]
-                        })
+                        Box::new(foo.clone()),
+                        Box::new(literal_node(
+                            ArrayLiteral {
+                                kind: ARRAY,
+                                items: vec![Box::new(
+                                    bar.clone()
+                                )]
+                            }
+                        ))
                     ]
-                }
+                })
             )),
             array_literal().parse(input)
         )
