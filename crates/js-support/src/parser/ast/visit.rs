@@ -1,6 +1,6 @@
 use crate::parser::ast::node::{Expr, Literal, Node, Stat};
 
-mod visitor {
+pub(crate) mod visitor {
     use super::*;
 
     pub(crate) trait Visitor {
@@ -32,5 +32,3 @@ mod visitor {
         fn visit_stat(&mut self, n: &Stat);
     }
 }
-
-mod visiable {}

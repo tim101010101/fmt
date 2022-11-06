@@ -4,6 +4,8 @@ mod tree;
 mod visit;
 
 pub(crate) use node::{expr_node, literal_node, stat_node};
+pub(crate) use visit::visitor;
+
 pub use node::{Expr, Literal, Node, Stat};
 
 use crate::parser::TokenStream;
