@@ -1,6 +1,7 @@
 mod grammar;
 mod node;
 mod tree;
+mod visit;
 
 pub use node::Node;
 
