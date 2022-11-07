@@ -27,12 +27,12 @@ impl Generator {
         self.push(" ");
     }
     pub(crate) fn tab(&mut self) {
-        self.indent();
         self.indent_level += 1;
+        self.indent();
     }
     pub(crate) fn backspace(&mut self) {
-        self.indent();
         self.indent_level -= 1;
+        self.indent();
     }
     pub(crate) fn new_line(&mut self) {
         self.push("\n");
@@ -56,8 +56,8 @@ impl Visitor for Generator {
         match n {
             Literal::Id { name, .. } => self.push(name),
 
-            Literal::StringLiteral { value, .. } => {
-                self.push(value)
+            Literal::StringLiteral { raw, .. } => {
+                self.push(raw)
             }
 
             Literal::NumberLiteral { raw, .. } => {
@@ -169,5 +169,13 @@ mod tests {
         let input = get_input("foo.bar");
         g.walk(&input);
         assert_eq!("foo.bar", g.dump());
+    }
+
+    #[test]
+    fn object_literal() {
+        let mut g = Generator::new();
+        let input = get_input("{foo:\"bar\"}");
+        g.walk(&input);
+        println!("{:?}", g.dump());
     }
 }

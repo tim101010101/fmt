@@ -14,8 +14,7 @@ pub(crate) mod visitor {
                 Node::Expr(e) => self.visit_expr(e),
                 Node::Stat(s) => self.visit_stat(s),
 
-                // TODO
-                _ => panic!(),
+                Node::Empty => (),
             }
         }
         fn visit_root(
