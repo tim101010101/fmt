@@ -1,6 +1,6 @@
 use crate::parser::visitor::Visitor;
 use crate::parser::{Expr, Literal, Node, Stat};
-use crate::rules::*;
+// use crate::rules::*;
 use crate::syntax_kind::SyntaxKind;
 
 pub(crate) struct Generator {
@@ -43,11 +43,7 @@ impl Generator {
     }
 
     fn indent(&mut self) {
-        self.push(
-            self.indent_kind
-                .repeat(self.indent_level)
-                .as_str(),
-        );
+        self.push(self.indent_kind.repeat(self.indent_level).as_str());
     }
 }
 
@@ -56,67 +52,45 @@ impl Visitor for Generator {
         match n {
             Literal::Id { name, .. } => self.push(name),
 
-            Literal::StringLiteral { raw, .. } => {
-                self.push(raw)
+            Literal::StringLiteral { raw, .. } => self.push(raw),
+
+            Literal::NumberLiteral { raw, .. } => self.push(raw),
+
+            Literal::ObjectLiteral { attributes, .. } => {
+                object_literal(self, attributes)
             }
 
-            Literal::NumberLiteral { raw, .. } => {
-                self.push(raw)
-            }
-
-            Literal::ObjectLiteral {
-                attributes, ..
-            } => object_literal(self, attributes),
-
-            Literal::ArrayLiteral { items, .. } => {
-                array_literal(self, items)
-            }
+            Literal::ArrayLiteral { items, .. } => array_literal(self, items),
         }
     }
     fn visit_expr(&mut self, n: &Expr) {
         match n {
             Expr::UnaryExpr {
                 prefix, op, expr, ..
-            } => unary_expr(
-                self,
-                *prefix,
-                SyntaxKind::to_str(op),
-                expr,
-            ),
+            } => unary_expr(self, *prefix, SyntaxKind::to_str(op), expr),
 
             Expr::BinaryExpr {
                 left, op, right, ..
-            } => binary_expr(
-                self,
-                left,
-                SyntaxKind::to_str(op),
-                right,
-            ),
+            } => binary_expr(self, left, SyntaxKind::to_str(op), right),
 
             Expr::TernaryExpr {
                 condition,
                 then_expr,
                 else_expr,
                 ..
-            } => ternary_expr(
-                self, condition, then_expr, else_expr,
-            ),
+            } => ternary_expr(self, condition, then_expr, else_expr),
 
-            Expr::AssignmentExpr {
-                left, right, ..
-            } => assignment_expr(self, left, right),
-
-            Expr::ValueAccessExpr { path, .. } => {
-                value_access_expr(self, path)
+            Expr::AssignmentExpr { left, right, .. } => {
+                assignment_expr(self, left, right)
             }
 
-            Expr::FunctionCallExpr {
-                callee, args, ..
-            } => function_call_expr(self, callee, args),
+            Expr::ValueAccessExpr { path, .. } => value_access_expr(self, path),
 
-            Expr::ReturnExpr { expr, .. } => {
-                return_expr(self, expr)
+            Expr::FunctionCallExpr { callee, args, .. } => {
+                function_call_expr(self, callee, args)
             }
+
+            Expr::ReturnExpr { expr, .. } => return_expr(self, expr),
         }
     }
     fn visit_stat(&mut self, n: &Stat) {

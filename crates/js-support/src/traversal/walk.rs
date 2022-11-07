@@ -1,6 +1,5 @@
 use crate::parser::{Expr, Literal, Node, Stat};
 use crate::traversal::visitor::{ExprVisitor, LiteralVisitor, StatVisitor};
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 
 #[derive(Default)]
