@@ -7,115 +7,96 @@ use crate::{
     T,
 };
 use shared::parser_combiner::{
-    atom, between, choice, either, empty, judge, map,
-    seq_by, zero_or_more, BoxedParser, Parser,
+    atom, between, choice, either, empty, judge, map, seq_by, zero_or_more, BoxedParser, Parser,
 };
 
-pub fn empty_node(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn empty_node() -> impl Parser<'static, TokenStream, Node> {
     empty().map(|_| Empty)
 }
 
-pub fn empty_token(
-) -> impl Parser<'static, TokenStream, SyntaxKind> {
+pub fn empty_token() -> impl Parser<'static, TokenStream, SyntaxKind> {
     empty().map(|_| EMPTY)
 }
 
-pub fn single_token(
-    expect: SyntaxKind,
-) -> impl Parser<'static, TokenStream, LexedToken> {
-    judge(
-        atom::<TokenStream, LexedToken>(),
-        move |(kind, _)| *kind == expect,
-    )
+pub fn single_token(expect: SyntaxKind) -> impl Parser<'static, TokenStream, LexedToken> {
+    judge(atom::<TokenStream, LexedToken>(), move |(kind, _)| {
+        *kind == expect
+    })
 }
 
-pub fn white_space() -> impl Parser<'static, TokenStream, ()>
-{
+pub fn white_space() -> impl Parser<'static, TokenStream, ()> {
     map(single_token(WHITESPACE), |_| ())
 }
 
-pub fn eq_eq(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn eq_eq() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T!["="])
         .and_then(|_| single_token(T!["="]))
         .map(|_| (EQEQ, "==".to_string()))
 }
 
-pub fn eq_eq_eq(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn eq_eq_eq() -> impl Parser<'static, TokenStream, LexedToken> {
     eq_eq()
         .and_then(|_| single_token(T!["="]))
         .map(|_| (EQEQEQ, "===".to_string()))
 }
 
-pub fn lt_eq(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn lt_eq() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T!["<"])
         .and_then(|_| single_token(T!["="]))
         .map(|_| (LTEQ, "<=".to_string()))
 }
 
-pub fn gt_eq(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn gt_eq() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T![">"])
         .and_then(|_| single_token(T!["="]))
         .map(|_| (GTEQ, ">=".to_string()))
 }
 
-pub fn bang_eq(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn bang_eq() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T!["!"])
         .and_then(|_| single_token(T!["="]))
         .map(|_| (BANGEQ, "!=".to_string()))
 }
 
-pub fn bang_eq_eq(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn bang_eq_eq() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T!["!"])
         .and_then(|_| single_token(T!["="]))
         .and_then(|_| single_token(T!["="]))
         .map(|_| (BANGEQEQ, "!==".to_string()))
 }
 
-pub fn plus_plus(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn plus_plus() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T!["+"])
         .and_then(|_| single_token(T!["+"]))
         .map(|_| (PLUSPLUS, "++".to_string()))
 }
 
-pub fn minus_minus(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn minus_minus() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T!["-"])
         .and_then(|_| single_token(T!["-"]))
         .map(|_| (MINUSMINUS, "--".to_string()))
 }
 
-pub fn lt_lt(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn lt_lt() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T!["<"])
         .and_then(|_| single_token(T!["<"]))
         .map(|_| (LTLT, "<<".to_string()))
 }
 
-pub fn gt_gt(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn gt_gt() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T![">"])
         .and_then(|_| single_token(T![">"]))
         .map(|_| (GTGT, ">>".to_string()))
 }
 
-pub fn gt_gt_gt(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn gt_gt_gt() -> impl Parser<'static, TokenStream, LexedToken> {
     single_token(T![">"])
         .and_then(|_| single_token(T![">"]))
         .and_then(|_| single_token(T![">"]))
         .map(|_| (GTGTGT, ">>>".to_string()))
 }
 
-pub fn comparison_op(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn comparison_op() -> impl Parser<'static, TokenStream, LexedToken> {
     choice(vec![
         BoxedParser::new(eq_eq()),
         BoxedParser::new(bang_eq()),
@@ -128,8 +109,7 @@ pub fn comparison_op(
     ])
 }
 
-pub fn calc_op(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn calc_op() -> impl Parser<'static, TokenStream, LexedToken> {
     choice(vec![
         BoxedParser::new(single_token(T!["+"])),
         BoxedParser::new(single_token(T!["-"])),
@@ -138,8 +118,7 @@ pub fn calc_op(
     ])
 }
 
-pub fn bit_calc_op(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn bit_calc_op() -> impl Parser<'static, TokenStream, LexedToken> {
     choice(vec![
         BoxedParser::new(single_token(T!["&"])),
         BoxedParser::new(single_token(T!["|"])),
@@ -151,8 +130,7 @@ pub fn bit_calc_op(
     ])
 }
 
-pub fn unary_prefix_op(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn unary_prefix_op() -> impl Parser<'static, TokenStream, LexedToken> {
     choice(vec![
         BoxedParser::new(plus_plus()),
         BoxedParser::new(minus_minus()),
@@ -162,8 +140,7 @@ pub fn unary_prefix_op(
     ])
 }
 
-pub fn unary_suffix_op(
-) -> impl Parser<'static, TokenStream, LexedToken> {
+pub fn unary_suffix_op() -> impl Parser<'static, TokenStream, LexedToken> {
     either(plus_plus(), minus_minus())
 }
 
@@ -173,20 +150,13 @@ pub fn list<ItemParser, SurroundParser>(
     right: SurroundParser,
 ) -> impl Parser<'static, TokenStream, Vec<Node>>
 where
-    SurroundParser:
-        Parser<'static, TokenStream, LexedToken>,
+    SurroundParser: Parser<'static, TokenStream, LexedToken>,
     ItemParser: Parser<'static, TokenStream, Node>,
 {
-    between(
-        left,
-        seq_by(item, single_token(T![","])),
-        right,
-    )
+    between(left, seq_by(item, single_token(T![","])), right)
 }
 
-pub fn block<P>(
-    parser: P,
-) -> impl Parser<'static, TokenStream, Vec<Node>>
+pub fn block<P>(parser: P) -> impl Parser<'static, TokenStream, Vec<Node>>
 where
     P: Parser<'static, TokenStream, Node>,
 {
@@ -202,9 +172,7 @@ mod tests {
     use super::*;
     use crate::parser::ast::grammar::literal;
     use crate::parser::ast::node::literal_node;
-    use crate::parser::ast::Literal::{
-        NumberLiteral, StringLiteral,
-    };
+    use crate::parser::ast::Literal::{NumberLiteral, StringLiteral};
 
     #[test]
     fn test_single_token() {
@@ -235,10 +203,7 @@ mod tests {
             (DEFINATOR, "const".to_string()),
         ];
         assert_eq!(
-            Ok((
-                vec![(DEFINATOR, "const".to_string())],
-                ()
-            )),
+            Ok((vec![(DEFINATOR, "const".to_string())], ())),
             white_space().parse(input)
         )
     }
@@ -247,10 +212,7 @@ mod tests {
     fn test_composite_operator() {
         assert_eq!(
             Ok((vec![], (EQEQ, "==".to_string()))),
-            eq_eq().parse(vec![
-                (EQ, "=".to_string()),
-                (EQ, "=".to_string()),
-            ])
+            eq_eq().parse(vec![(EQ, "=".to_string()), (EQ, "=".to_string()),])
         );
 
         assert_eq!(
@@ -264,26 +226,17 @@ mod tests {
 
         assert_eq!(
             Ok((vec![], (LTEQ, "<=".to_string()))),
-            lt_eq().parse(vec![
-                (LT, "<".to_string()),
-                (EQ, "=".to_string()),
-            ])
+            lt_eq().parse(vec![(LT, "<".to_string()), (EQ, "=".to_string()),])
         );
 
         assert_eq!(
             Ok((vec![], (GTEQ, ">=".to_string()))),
-            gt_eq().parse(vec![
-                (GT, ">".to_string()),
-                (EQ, "=".to_string()),
-            ])
+            gt_eq().parse(vec![(GT, ">".to_string()), (EQ, "=".to_string()),])
         );
 
         assert_eq!(
             Ok((vec![], (BANGEQ, "!=".to_string()).into())),
-            bang_eq().parse(vec![
-                (BANG, "!".to_string()),
-                (EQ, "=".to_string()),
-            ])
+            bang_eq().parse(vec![(BANG, "!".to_string()), (EQ, "=".to_string()),])
         );
 
         assert_eq!(
@@ -310,12 +263,7 @@ mod tests {
         ];
         assert_eq!(
             Ok((vec![], vec![])),
-            list(
-                single_token(T!["("]),
-                literal(),
-                single_token(T![")"])
-            )
-            .parse(input)
+            list(single_token(T!["("]), literal(), single_token(T![")"])).parse(input)
         );
 
         let input = vec![
@@ -325,12 +273,7 @@ mod tests {
         ];
         assert_eq!(
             Ok((vec![], vec![one.clone()])),
-            list(
-                single_token(T!["("]),
-                literal(),
-                single_token(T![")"])
-            )
-            .parse(input)
+            list(single_token(T!["("]), literal(), single_token(T![")"])).parse(input)
         );
 
         let input = vec![
@@ -343,16 +286,8 @@ mod tests {
             (CLOSE_PAREN, ")".to_string()),
         ];
         assert_eq!(
-            Ok((
-                vec![],
-                vec![one.clone(), one.clone(), one.clone()]
-            )),
-            list(
-                single_token(T!["("]),
-                literal(),
-                single_token(T![")"])
-            )
-            .parse(input)
+            Ok((vec![], vec![one.clone(), one.clone(), one.clone()])),
+            list(single_token(T!["("]), literal(), single_token(T![")"])).parse(input)
         );
 
         let input = vec![
@@ -367,12 +302,7 @@ mod tests {
         ];
         assert_eq!(
             Err(input.clone()),
-            list(
-                single_token(T!["("]),
-                literal(),
-                single_token(T![")"])
-            )
-            .parse(input)
+            list(single_token(T!["("]), literal(), single_token(T![")"])).parse(input)
         )
     }
 
@@ -393,10 +323,7 @@ mod tests {
             (OPEN_BRACE, "{".to_string()),
             (CLOSE_BRACE, "}".to_string()),
         ];
-        assert_eq!(
-            Ok((vec![], vec![])),
-            block(literal()).parse(input)
-        );
+        assert_eq!(Ok((vec![], vec![])), block(literal()).parse(input));
 
         let input = vec![
             (OPEN_BRACE, "{".to_string()),
@@ -404,9 +331,6 @@ mod tests {
             (STRING, "\"bar\"".to_string()),
             (CLOSE_BRACE, "}".to_string()),
         ];
-        assert_eq!(
-            Ok((vec![], vec![foo, bar])),
-            block(literal()).parse(input)
-        );
+        assert_eq!(Ok((vec![], vec![foo, bar])), block(literal()).parse(input));
     }
 }

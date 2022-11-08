@@ -11,8 +11,7 @@ pub use lex::lex;
 mod tests {
     use crate::{
         parser::{
-            expr_node, lex, literal_node, stat_node, syntax, Expr::*,
-            Literal::*, Node::*, Stat::*,
+            expr_node, lex, literal_node, stat_node, syntax, Expr::*, Literal::*, Node::*, Stat::*,
         },
         syntax_kind::*,
     };

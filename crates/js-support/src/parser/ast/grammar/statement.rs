@@ -13,13 +13,11 @@ use crate::{
     T,
 };
 use shared::parser_combiner::{
-    between, choice, either, left, one_or_more, pair,
-    right, seq_by, series, zero_or_more, zero_or_one,
-    BoxedParser, Parser,
+    between, choice, either, left, one_or_more, pair, right, seq_by, series, zero_or_more,
+    zero_or_one, BoxedParser, Parser,
 };
 
-pub fn boxed_stat_node(
-) -> impl Parser<'static, TokenStream, Box<Node>> {
+pub fn boxed_stat_node() -> impl Parser<'static, TokenStream, Box<Node>> {
     stat().map(|n| Box::new(n))
 }
 
@@ -29,10 +27,10 @@ pub fn boxed_stat_node(
 ///       | CycleStat
 pub fn stat() -> impl Parser<'static, TokenStream, Node> {
     choice(vec![
-        BoxedParser::new(expr().and_then(|expr| {
-            zero_or_one(single_token(T![";"]))
-                .map(move |_| expr.to_owned())
-        })),
+        BoxedParser::new(
+            expr()
+                .and_then(|expr| zero_or_one(single_token(T![";"])).map(move |_| expr.to_owned())),
+        ),
         BoxedParser::new(declaration_stat()),
         BoxedParser::new(condition_stat()),
         BoxedParser::new(cycle_stat()),
@@ -41,31 +39,21 @@ pub fn stat() -> impl Parser<'static, TokenStream, Node> {
 
 /// DeclarationStat -> FunctionDeclara
 ///                  | VariableDeclara (";")?
-pub fn declaration_stat(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn declaration_stat() -> impl Parser<'static, TokenStream, Node> {
     either(
         function_decla(),
-        left(
-            variable_decla(),
-            zero_or_one(single_token(T![";"])),
-        ),
+        left(variable_decla(), zero_or_one(single_token(T![";"]))),
     )
 }
 
 /// FunctionDecla -> FUNCTION ID "(" (ID ("," ID)*)? ")" Block
-pub fn function_decla(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn function_decla() -> impl Parser<'static, TokenStream, Node> {
     right(single_token(FUNCTION_KW), id())
         .and_then(|name| {
             between(
                 single_token(T!["("]),
                 seq_by(
-                    single_token(ID).map(|(_, name)| {
-                        Box::new(literal_node(Id {
-                            kind: ID,
-                            name,
-                        }))
-                    }),
+                    single_token(ID).map(|(_, name)| Box::new(literal_node(Id { kind: ID, name }))),
                     single_token(T![","]),
                 ),
                 single_token(T![")"]),
@@ -85,48 +73,35 @@ pub fn function_decla(
 }
 
 /// VariableDecla -> DEFINTOR ID "=" Expr
-pub fn variable_decla(
-) -> impl Parser<'static, TokenStream, Node> {
-    pair(single_token(DEFINATOR), id()).and_then(
-        |(definator, name)| {
-            right(single_token(T!["="]), expr()).map(
-                move |init| {
-                    let (_, definator) =
-                        definator.to_owned();
+pub fn variable_decla() -> impl Parser<'static, TokenStream, Node> {
+    pair(single_token(DEFINATOR), id()).and_then(|(definator, name)| {
+        right(single_token(T!["="]), expr()).map(move |init| {
+            let (_, definator) = definator.to_owned();
 
-                    stat_node(VariableDeclaStatement {
-                        kind: VARIABLE_DECLA_STAT,
-                        definator,
-                        name: name.to_owned(),
-                        init: Box::new(init),
-                    })
-                },
-            )
-        },
-    )
+            stat_node(VariableDeclaStatement {
+                kind: VARIABLE_DECLA_STAT,
+                definator,
+                name: name.to_owned(),
+                init: Box::new(init),
+            })
+        })
+    })
 }
 
 /// ConditionStat -> IfStat | SwitchStat
-pub fn condition_stat(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn condition_stat() -> impl Parser<'static, TokenStream, Node> {
     either(if_stat(), switch_stat())
 }
 
 /// IfStat -> IF IfStat1 (ElseIfStat)* ElseStat?
-pub fn if_stat() -> impl Parser<'static, TokenStream, Node>
-{
-    fn build_node(
-        mut case_list: Vec<(Box<Node>, Vec<Box<Node>>)>,
-        else_stat: Node,
-    ) -> Node {
+pub fn if_stat() -> impl Parser<'static, TokenStream, Node> {
+    fn build_node(mut case_list: Vec<(Box<Node>, Vec<Box<Node>>)>, else_stat: Node) -> Node {
         if let Some((expr, then_block)) = case_list.pop() {
             stat_node(IfStatement {
                 kind: IF_STAT,
                 expr,
                 then_block,
-                else_block: Box::new(build_node(
-                    case_list, else_stat,
-                )),
+                else_block: Box::new(build_node(case_list, else_stat)),
             })
         } else {
             else_stat
@@ -135,13 +110,11 @@ pub fn if_stat() -> impl Parser<'static, TokenStream, Node>
 
     right(single_token(IF_KW), if_stat1())
         .and_then(|expr| {
-            zero_or_more(else_if_stat()).map(
-                move |case_list| {
-                    let mut case_list = case_list;
-                    case_list.insert(0, expr.to_owned());
-                    case_list
-                },
-            )
+            zero_or_more(else_if_stat()).map(move |case_list| {
+                let mut case_list = case_list;
+                case_list.insert(0, expr.to_owned());
+                case_list
+            })
         })
         .and_then(|case_list| {
             let mut case_list = case_list.to_owned();
@@ -159,50 +132,37 @@ pub fn if_stat() -> impl Parser<'static, TokenStream, Node>
 }
 
 /// IfStat1 -> "(" Expr ")" Block
-pub fn if_stat1(
-) -> impl Parser<'static, TokenStream, (Box<Node>, Vec<Box<Node>>)>
-{
+pub fn if_stat1() -> impl Parser<'static, TokenStream, (Box<Node>, Vec<Box<Node>>)> {
     between(
         single_token(T!["("]),
         boxed_expr_node(),
         single_token(T![")"]),
     )
-    .and_then(|expr| {
-        stat_block().map(move |then_block| {
-            (expr.to_owned(), then_block)
-        })
-    })
+    .and_then(|expr| stat_block().map(move |then_block| (expr.to_owned(), then_block)))
 }
 
 /// ElseIfStat -> ELSE IF IfStat1
-pub fn else_if_stat(
-) -> impl Parser<'static, TokenStream, (Box<Node>, Vec<Box<Node>>)>
-{
+pub fn else_if_stat() -> impl Parser<'static, TokenStream, (Box<Node>, Vec<Box<Node>>)> {
     right(
-        single_token(ELSE_KW)
-            .and_then(|_| single_token(IF_KW)),
+        single_token(ELSE_KW).and_then(|_| single_token(IF_KW)),
         if_stat1(),
     )
 }
 
 /// ElseStat -> ELSE Block
-pub fn else_stat() -> impl Parser<'static, TokenStream, Node>
-{
-    right(single_token(ELSE_KW), stat_block()).map(
-        |then_block| {
-            stat_node(IfStatement {
-                kind: IF_STAT,
-                expr: Box::new(Empty),
-                then_block,
-                else_block: Box::new(Empty),
-            })
-        },
-    )
+pub fn else_stat() -> impl Parser<'static, TokenStream, Node> {
+    right(single_token(ELSE_KW), stat_block()).map(|then_block| {
+        stat_node(IfStatement {
+            kind: IF_STAT,
+            expr: Box::new(Empty),
+            then_block,
+            else_block: Box::new(Empty),
+        })
+    })
 }
 
 /// SwitchStat -> SWITH "(" Expr ")" SwitchBlock
-pub fn switch_stat(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn switch_stat() -> impl Parser<'static, TokenStream, Node> {
     right(
         single_token(SWITCH_KW),
         between(
@@ -223,31 +183,21 @@ pub fn switch_stat(
 }
 
 /// SwitchBlock -> "{" ((CaseStat)* DefaultStat? )? "}"
-pub fn switch_block(
-) -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
+pub fn switch_block() -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
     between(
         single_token(T!["{"]),
         zero_or_one(
-            one_or_more(
-                case_stat().map(|n| Box::new(n.to_owned())),
-            )
-            .and_then(|case_list| {
-                zero_or_one(
-                    default_stat()
-                        .map(|n| Box::new(n.to_owned())),
-                )
-                .map(move |default_case| {
-                    match default_case {
+            one_or_more(case_stat().map(|n| Box::new(n.to_owned()))).and_then(|case_list| {
+                zero_or_one(default_stat().map(|n| Box::new(n.to_owned()))).map(
+                    move |default_case| match default_case {
                         None => case_list.to_owned(),
                         Some(default_case_node) => {
-                            let mut case_list =
-                                case_list.to_owned();
-                            case_list
-                                .push(default_case_node);
+                            let mut case_list = case_list.to_owned();
+                            case_list.push(default_case_node);
                             case_list
                         }
-                    }
-                })
+                    },
+                )
             }),
         ),
         single_token(T!["}"]),
@@ -259,70 +209,48 @@ pub fn switch_block(
 }
 
 /// SwitchStat1 -> ":" Stat* BREAK? ";"?
-pub fn switch_stat1(
-) -> impl Parser<'static, TokenStream, (bool, Vec<Box<Node>>)>
-{
+pub fn switch_stat1() -> impl Parser<'static, TokenStream, (bool, Vec<Box<Node>>)> {
     single_token(T![":"])
-        .and_then(|_| {
-            zero_or_more(stat().map(|n| Box::new(n)))
-        })
+        .and_then(|_| zero_or_more(stat().map(|n| Box::new(n))))
         .and_then(|then_block| {
-            zero_or_one(single_token(BREAK_KW)).map(
-                move |has_break| {
-                    (
-                        has_break.is_some(),
-                        then_block.to_owned(),
-                    )
-                },
-            )
+            zero_or_one(single_token(BREAK_KW))
+                .map(move |has_break| (has_break.is_some(), then_block.to_owned()))
         })
-        .and_then(|res| {
-            zero_or_one(single_token(T![";"]))
-                .map(move |_| res.to_owned())
-        })
+        .and_then(|res| zero_or_one(single_token(T![";"])).map(move |_| res.to_owned()))
 }
 
 /// CaseStat -> CASE Expr SwitchStat1
-pub fn case_stat() -> impl Parser<'static, TokenStream, Node>
-{
-    right(single_token(CASE_KW), boxed_expr_node())
-        .and_then(|expr| {
-            switch_stat1().map(
-                move |(has_break, then_block)| {
-                    stat_node(CaseStatement {
-                        kind: CASE_STAT,
-                        expr: expr.to_owned(),
-                        has_break,
-                        then_block,
-                    })
-                },
-            )
-        })
-}
-
-/// DefaultStat -> DEFAULT SwitchStat1
-pub fn default_stat(
-) -> impl Parser<'static, TokenStream, Node> {
-    right(single_token(DEFAULT_KW), switch_stat1()).map(
-        |(has_break, then_block)| {
-            stat_node(DefaultStatement {
-                kind: DEFAULT_CASE_STAT,
+pub fn case_stat() -> impl Parser<'static, TokenStream, Node> {
+    right(single_token(CASE_KW), boxed_expr_node()).and_then(|expr| {
+        switch_stat1().map(move |(has_break, then_block)| {
+            stat_node(CaseStatement {
+                kind: CASE_STAT,
+                expr: expr.to_owned(),
                 has_break,
                 then_block,
             })
-        },
-    )
+        })
+    })
+}
+
+/// DefaultStat -> DEFAULT SwitchStat1
+pub fn default_stat() -> impl Parser<'static, TokenStream, Node> {
+    right(single_token(DEFAULT_KW), switch_stat1()).map(|(has_break, then_block)| {
+        stat_node(DefaultStatement {
+            kind: DEFAULT_CASE_STAT,
+            has_break,
+            then_block,
+        })
+    })
 }
 
 /// CycleStat -> ForStat | While Stat
-pub fn cycle_stat(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn cycle_stat() -> impl Parser<'static, TokenStream, Node> {
     either(for_stat(), while_stat())
 }
 
 /// ForStat -> FOR "(" ForStatArgs ")" Block
-pub fn for_stat() -> impl Parser<'static, TokenStream, Node>
-{
+pub fn for_stat() -> impl Parser<'static, TokenStream, Node> {
     right(
         single_token(FOR_KW),
         between(
@@ -345,28 +273,17 @@ pub fn for_stat() -> impl Parser<'static, TokenStream, Node>
 }
 
 /// ForStatArgs -> VariableDecla? ";" BinaryExpr? ";" Expr?
-pub fn for_stat_args() -> impl Parser<
-    'static,
-    TokenStream,
-    (Box<Node>, Box<Node>, Box<Node>),
-> {
+pub fn for_stat_args() -> impl Parser<'static, TokenStream, (Box<Node>, Box<Node>, Box<Node>)> {
     series(vec![
-        BoxedParser::new(left(
-            zero_or_one(variable_decla()),
-            single_token(T![";"]),
-        )),
-        BoxedParser::new(left(
-            zero_or_one(binary_expr()),
-            single_token(T![";"]),
-        )),
+        BoxedParser::new(left(zero_or_one(variable_decla()), single_token(T![";"]))),
+        BoxedParser::new(left(zero_or_one(binary_expr()), single_token(T![";"]))),
         BoxedParser::new(zero_or_one(expr())),
     ])
     .map(|args| {
-        let unwrap_node =
-            |maybe_node: &Option<Node>| match maybe_node {
-                None => Box::new(Empty),
-                Some(n) => Box::new(n.to_owned()),
-            };
+        let unwrap_node = |maybe_node: &Option<Node>| match maybe_node {
+            None => Box::new(Empty),
+            Some(n) => Box::new(n.to_owned()),
+        };
         (
             unwrap_node(args.get(0).unwrap()),
             unwrap_node(args.get(1).unwrap()),
@@ -376,8 +293,7 @@ pub fn for_stat_args() -> impl Parser<
 }
 
 /// WhileStat -> WHILE "(" Expr ")" Block
-pub fn while_stat(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn while_stat() -> impl Parser<'static, TokenStream, Node> {
     single_token(WHILE_KW).and_then(|_| {
         between(
             single_token(T!["("]),
@@ -396,23 +312,15 @@ pub fn while_stat(
     })
 }
 
-pub fn stat_block(
-) -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
-    block(stat()).map(|node_list| {
-        node_list
-            .iter()
-            .map(|n| Box::new(n.to_owned()))
-            .collect()
-    })
+pub fn stat_block() -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
+    block(stat()).map(|node_list| node_list.iter().map(|n| Box::new(n.to_owned())).collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::parser::ast::node::expr_node;
-    use crate::parser::ast::Expr::{
-        AssignmentExpr, BinaryExpr, UnaryExpr,
-    };
+    use crate::parser::ast::Expr::{AssignmentExpr, BinaryExpr, UnaryExpr};
     use crate::parser::ast::Literal::NumberLiteral;
     use crate::parser::lex;
 
@@ -431,8 +339,7 @@ mod tests {
         }));
         (foo, bar, baz)
     }
-    fn get_number(
-    ) -> (Box<Node>, Box<Node>, Box<Node>, Box<Node>) {
+    fn get_number() -> (Box<Node>, Box<Node>, Box<Node>, Box<Node>) {
         let one = Box::new(literal_node(NumberLiteral {
             kind: NUMBER,
             value: 1,
@@ -491,41 +398,36 @@ mod tests {
             kind: ID,
             name: "c".to_string(),
         }));
-        let bar_eqeq_one =
-            Box::new(expr_node(BinaryExpr {
-                kind: BINARY_EXPR,
-                left: bar.clone(),
-                op: EQEQ,
-                right: one.clone(),
-            }));
-        let baz_eqeqeq_two =
-            Box::new(expr_node(BinaryExpr {
-                kind: BINARY_EXPR,
-                left: baz.clone(),
-                op: EQEQEQ,
-                right: two.clone(),
-            }));
-        let let_a_one =
-            Box::new(stat_node(VariableDeclaStatement {
-                kind: VARIABLE_DECLA_STAT,
-                definator: "let".to_string(),
-                name: a_id.clone(),
-                init: one.clone(),
-            }));
-        let const_b_two =
-            Box::new(stat_node(VariableDeclaStatement {
-                kind: VARIABLE_DECLA_STAT,
-                definator: "const".to_string(),
-                name: b_id.clone(),
-                init: two.clone(),
-            }));
-        let var_c_three =
-            Box::new(stat_node(VariableDeclaStatement {
-                kind: VARIABLE_DECLA_STAT,
-                definator: "var".to_string(),
-                name: c_id.clone(),
-                init: three.clone(),
-            }));
+        let bar_eqeq_one = Box::new(expr_node(BinaryExpr {
+            kind: BINARY_EXPR,
+            left: bar.clone(),
+            op: EQEQ,
+            right: one.clone(),
+        }));
+        let baz_eqeqeq_two = Box::new(expr_node(BinaryExpr {
+            kind: BINARY_EXPR,
+            left: baz.clone(),
+            op: EQEQEQ,
+            right: two.clone(),
+        }));
+        let let_a_one = Box::new(stat_node(VariableDeclaStatement {
+            kind: VARIABLE_DECLA_STAT,
+            definator: "let".to_string(),
+            name: a_id.clone(),
+            init: one.clone(),
+        }));
+        let const_b_two = Box::new(stat_node(VariableDeclaStatement {
+            kind: VARIABLE_DECLA_STAT,
+            definator: "const".to_string(),
+            name: b_id.clone(),
+            init: two.clone(),
+        }));
+        let var_c_three = Box::new(stat_node(VariableDeclaStatement {
+            kind: VARIABLE_DECLA_STAT,
+            definator: "var".to_string(),
+            name: c_id.clone(),
+            init: three.clone(),
+        }));
         let a_eqeq_one = Box::new(expr_node(BinaryExpr {
             kind: BINARY_EXPR,
             left: a_id.clone(),
@@ -580,74 +482,65 @@ mod tests {
         "#);
         assert_eq!(
             Ok((
-                vec![], stat_node(FunctionDeclaStatement {
-    kind: FUNCTION_DECLA_STAT,
-    name: foo.clone(),
-    args: vec![bar.clone(), baz.clone()],
-    body: vec![
-        Box::new(stat_node(IfStatement {
-            kind: IF_STAT,
-            expr: bar_eqeq_one.clone(),
-            then_block: vec![let_a_one.clone()],
-            else_block: Box::new(stat_node(IfStatement {
-                    kind: IF_STAT,
-                    expr: baz_eqeqeq_two.clone(),
-                    then_block: vec![const_b_two.clone()],
-                    else_block: Box::new(stat_node(IfStatement {
+                vec![],
+                stat_node(FunctionDeclaStatement {
+                    kind: FUNCTION_DECLA_STAT,
+                    name: foo.clone(),
+                    args: vec![bar.clone(), baz.clone()],
+                    body: vec![
+                        Box::new(stat_node(IfStatement {
                             kind: IF_STAT,
-                            expr: empty_node.clone(),
-                            then_block: vec![var_c_three.clone()],
-                            else_block: empty_node.clone()
+                            expr: bar_eqeq_one.clone(),
+                            then_block: vec![let_a_one.clone()],
+                            else_block: Box::new(stat_node(IfStatement {
+                                kind: IF_STAT,
+                                expr: baz_eqeqeq_two.clone(),
+                                then_block: vec![const_b_two.clone()],
+                                else_block: Box::new(stat_node(IfStatement {
+                                    kind: IF_STAT,
+                                    expr: empty_node.clone(),
+                                    then_block: vec![var_c_three.clone()],
+                                    else_block: empty_node.clone()
+                                }))
+                            }))
+                        })),
+                        Box::new(stat_node(SwitchStatement {
+                            kind: SWITCH_STAT,
+                            expr: bar.clone(),
+                            then_block: vec![
+                                Box::new(stat_node(CaseStatement {
+                                    kind: CASE_STAT,
+                                    expr: one.clone(),
+                                    has_break: true,
+                                    then_block: vec![let_a_one.clone()]
+                                })),
+                                Box::new(stat_node(CaseStatement {
+                                    kind: CASE_STAT,
+                                    expr: two.clone(),
+                                    has_break: true,
+                                    then_block: vec![const_b_two.clone()]
+                                })),
+                                Box::new(stat_node(DefaultStatement {
+                                    kind: DEFAULT_CASE_STAT,
+                                    has_break: true,
+                                    then_block: vec![var_c_three.clone()]
+                                }))
+                            ]
+                        })),
+                        Box::new(stat_node(WhileStatement {
+                            kind: WHILE_STAT,
+                            condition: a_eqeq_one.clone(),
+                            then_block: vec![let_a_one.clone()]
+                        })),
+                        Box::new(stat_node(ForStatement {
+                            kind: FOR_STAT,
+                            init: let_a_one.clone(),
+                            condition: a_lteq_one.clone(),
+                            step: a_plusplus.clone(),
+                            then_block: vec![let_a_one.clone()]
                         }))
-                }))
-        })),
-        Box::new(stat_node(SwitchStatement {
-            kind: SWITCH_STAT,
-            expr: bar.clone(),
-            then_block: vec![
-                Box::new(stat_node(CaseStatement {
-                    kind: CASE_STAT,
-                    expr: one.clone(),
-                    has_break: true,
-                    then_block: vec![
-                        let_a_one.clone()
                     ]
-                })),
-                Box::new(stat_node(CaseStatement {
-                    kind: CASE_STAT,
-                    expr: two.clone(),
-                    has_break: true,
-                    then_block: vec![
-                        const_b_two.clone()
-                    ]
-                })),
-                Box::new(stat_node(DefaultStatement {
-                    kind: DEFAULT_CASE_STAT,
-                    has_break: true,
-                    then_block: vec![
-                        var_c_three.clone()
-                    ]
-                }))
-            ]
-        })),
-        Box::new(stat_node(WhileStatement {
-            kind: WHILE_STAT,
-            condition: a_eqeq_one.clone(),
-            then_block: vec![
-                let_a_one.clone()
-            ]
-        })),
-        Box::new(stat_node(ForStatement {
-            kind: FOR_STAT,
-            init: let_a_one.clone(),
-            condition: a_lteq_one.clone(),
-            step: a_plusplus.clone(),
-            then_block: vec![
-                let_a_one.clone()
-            ]
-        }))
-    ]
-})
+                })
             )),
             stat().parse(input)
         )
@@ -722,20 +615,18 @@ mod tests {
         let (one, two, _, _) = get_number();
         let one_plusplus = get_unary_expr();
         let empty_node = Box::new(Empty);
-        let foo_eqeq_one =
-            Box::new(expr_node(BinaryExpr {
-                kind: BINARY_EXPR,
-                left: foo.clone(),
-                op: EQEQ,
-                right: one.clone(),
-            }));
-        let bar_eqeq_two =
-            Box::new(expr_node(BinaryExpr {
-                kind: BINARY_EXPR,
-                left: bar.clone(),
-                op: EQEQ,
-                right: two.clone(),
-            }));
+        let foo_eqeq_one = Box::new(expr_node(BinaryExpr {
+            kind: BINARY_EXPR,
+            left: foo.clone(),
+            op: EQEQ,
+            right: one.clone(),
+        }));
+        let bar_eqeq_two = Box::new(expr_node(BinaryExpr {
+            kind: BINARY_EXPR,
+            left: bar.clone(),
+            op: EQEQ,
+            right: two.clone(),
+        }));
 
         let input = lex(r#"
         if (foo == 1) {
@@ -750,48 +641,40 @@ mod tests {
                     kind: IF_STAT,
                     expr: foo_eqeq_one.clone(),
                     then_block: vec![],
-                    else_block: Box::new(stat_node(
-                        IfStatement {
-                            kind: IF_STAT,
-                            expr: bar_eqeq_two.clone(),
-                            then_block: vec![],
-                            else_block: Box::new(
-                                stat_node(IfStatement {
-                                    kind: IF_STAT,
-                                    expr: empty_node
-                                        .clone(),
-                                    then_block: vec![],
-                                    else_block: empty_node
-                                        .clone()
-                                })
-                            )
-                        }
-                    ))
-                })
-            )),
-            if_stat().parse(input)
-        );
-
-        let input = lex(r#"
-        if (foo == 1) {
-        } else {
-        }
-        "#);
-        assert_eq!(
-            Ok((
-                vec![],
-                stat_node(IfStatement {
-                    kind: IF_STAT,
-                    expr: foo_eqeq_one.clone(),
-                    then_block: vec![],
-                    else_block: Box::new(stat_node(
-                        IfStatement {
+                    else_block: Box::new(stat_node(IfStatement {
+                        kind: IF_STAT,
+                        expr: bar_eqeq_two.clone(),
+                        then_block: vec![],
+                        else_block: Box::new(stat_node(IfStatement {
                             kind: IF_STAT,
                             expr: empty_node.clone(),
                             then_block: vec![],
                             else_block: empty_node.clone()
-                        }
-                    ))
+                        }))
+                    }))
+                })
+            )),
+            if_stat().parse(input)
+        );
+
+        let input = lex(r#"
+        if (foo == 1) {
+        } else {
+        }
+        "#);
+        assert_eq!(
+            Ok((
+                vec![],
+                stat_node(IfStatement {
+                    kind: IF_STAT,
+                    expr: foo_eqeq_one.clone(),
+                    then_block: vec![],
+                    else_block: Box::new(stat_node(IfStatement {
+                        kind: IF_STAT,
+                        expr: empty_node.clone(),
+                        then_block: vec![],
+                        else_block: empty_node.clone()
+                    }))
                 })
             )),
             if_stat().parse(input)
@@ -809,14 +692,12 @@ mod tests {
                     kind: IF_STAT,
                     expr: foo_eqeq_one.clone(),
                     then_block: vec![],
-                    else_block: Box::new(stat_node(
-                        IfStatement {
-                            kind: IF_STAT,
-                            expr: bar_eqeq_two.clone(),
-                            then_block: vec![],
-                            else_block: empty_node.clone()
-                        }
-                    ))
+                    else_block: Box::new(stat_node(IfStatement {
+                        kind: IF_STAT,
+                        expr: bar_eqeq_two.clone(),
+                        then_block: vec![],
+                        else_block: empty_node.clone()
+                    }))
                 })
             )),
             if_stat().parse(input)
@@ -838,28 +719,17 @@ mod tests {
                     kind: IF_STAT,
                     expr: foo_eqeq_one.clone(),
                     then_block: vec![one_plusplus.clone()],
-                    else_block: Box::new(stat_node(
-                        IfStatement {
+                    else_block: Box::new(stat_node(IfStatement {
+                        kind: IF_STAT,
+                        expr: bar_eqeq_two.clone(),
+                        then_block: vec![one_plusplus.clone()],
+                        else_block: Box::new(stat_node(IfStatement {
                             kind: IF_STAT,
-                            expr: bar_eqeq_two.clone(),
-                            then_block: vec![
-                                one_plusplus.clone()
-                            ],
-                            else_block: Box::new(
-                                stat_node(IfStatement {
-                                    kind: IF_STAT,
-                                    expr: empty_node
-                                        .clone(),
-                                    then_block: vec![
-                                        one_plusplus
-                                            .clone()
-                                    ],
-                                    else_block: empty_node
-                                        .clone()
-                                })
-                            )
-                        }
-                    ))
+                            expr: empty_node.clone(),
+                            then_block: vec![one_plusplus.clone()],
+                            else_block: empty_node.clone()
+                        }))
+                    }))
                 })
             )),
             if_stat().parse(input)
@@ -885,21 +755,17 @@ mod tests {
                     kind: SWITCH_STAT,
                     expr: foo.clone(),
                     then_block: vec![
-                        Box::new(stat_node(
-                            CaseStatement {
-                                kind: CASE_STAT,
-                                expr: one.clone(),
-                                has_break: true,
-                                then_block: vec![]
-                            }
-                        )),
-                        Box::new(stat_node(
-                            DefaultStatement {
-                                kind: DEFAULT_CASE_STAT,
-                                has_break: true,
-                                then_block: vec![]
-                            }
-                        ))
+                        Box::new(stat_node(CaseStatement {
+                            kind: CASE_STAT,
+                            expr: one.clone(),
+                            has_break: true,
+                            then_block: vec![]
+                        })),
+                        Box::new(stat_node(DefaultStatement {
+                            kind: DEFAULT_CASE_STAT,
+                            has_break: true,
+                            then_block: vec![]
+                        }))
                     ]
                 })
             )),
@@ -925,46 +791,34 @@ mod tests {
                     kind: SWITCH_STAT,
                     expr: foo.clone(),
                     then_block: vec![
-                        Box::new(stat_node(
-                            CaseStatement {
-                                kind: CASE_STAT,
-                                expr: one.clone(),
-                                has_break: true,
-                                then_block: vec![Box::new(
-                                    expr_node(                                    AssignmentExpr {
-                                        kind:
-                                        ASSIGNMENT_EXPR,
-                                        left: bar.clone(),
-                                        right: one.clone()
-                                    }
-                                    )
-                                )]
-                            }
-                        )),
+                        Box::new(stat_node(CaseStatement {
+                            kind: CASE_STAT,
+                            expr: one.clone(),
+                            has_break: true,
+                            then_block: vec![Box::new(expr_node(AssignmentExpr {
+                                kind: ASSIGNMENT_EXPR,
+                                left: bar.clone(),
+                                right: one.clone()
+                            }))]
+                        })),
                         Box::new(stat_node(CaseStatement {
                             kind: CASE_STAT,
                             expr: two.clone(),
                             has_break: true,
-                            then_block: vec![Box::new(
-                                expr_node(                                AssignmentExpr {
-                                    kind: ASSIGNMENT_EXPR,
-                                    left: bar.clone(),
-                                    right: two.clone()
-                                }
-                                )
-                            )]
+                            then_block: vec![Box::new(expr_node(AssignmentExpr {
+                                kind: ASSIGNMENT_EXPR,
+                                left: bar.clone(),
+                                right: two.clone()
+                            }))]
                         })),
                         Box::new(stat_node(DefaultStatement {
                             kind: DEFAULT_CASE_STAT,
                             has_break: true,
-                            then_block: vec![Box::new(
-                                expr_node(                                AssignmentExpr {
-                                    kind: ASSIGNMENT_EXPR,
-                                    left: bar.clone(),
-                                    right: three.clone()
-                                }
-                                )
-                            )]
+                            then_block: vec![Box::new(expr_node(AssignmentExpr {
+                                kind: ASSIGNMENT_EXPR,
+                                left: bar.clone(),
+                                right: three.clone()
+                            }))]
                         }))
                     ]
                 })
@@ -988,47 +842,35 @@ mod tests {
                     kind: SWITCH_STAT,
                     expr: foo.clone(),
                     then_block: vec![
-                        Box::new(stat_node(
-                            CaseStatement {
-                                kind: CASE_STAT,
-                                expr: one.clone(),
-                                has_break: false,
-                                then_block: vec![Box::new(
-                                expr_node(AssignmentExpr {
-                                    kind: ASSIGNMENT_EXPR,
-                                    left: bar.clone(),
-                                    right: one.clone()
-                                })
-                            )]
-                            }
-                        )),
-                        Box::new(stat_node(
-                            CaseStatement {
-                                kind: CASE_STAT,
-                                expr: two.clone(),
-                                has_break: false,
-                                then_block: vec![Box::new(
-                                expr_node(AssignmentExpr {
-                                    kind: ASSIGNMENT_EXPR,
-                                    left: bar.clone(),
-                                    right: two.clone()
-                                })
-                            )]
-                            }
-                        )),
-                        Box::new(stat_node(
-                            DefaultStatement {
-                                kind: DEFAULT_CASE_STAT,
-                                has_break: false,
-                                then_block: vec![Box::new(
-                                expr_node(AssignmentExpr {
-                                    kind: ASSIGNMENT_EXPR,
-                                    left: bar.clone(),
-                                    right: three.clone()
-                                })
-                            )]
-                            }
-                        ))
+                        Box::new(stat_node(CaseStatement {
+                            kind: CASE_STAT,
+                            expr: one.clone(),
+                            has_break: false,
+                            then_block: vec![Box::new(expr_node(AssignmentExpr {
+                                kind: ASSIGNMENT_EXPR,
+                                left: bar.clone(),
+                                right: one.clone()
+                            }))]
+                        })),
+                        Box::new(stat_node(CaseStatement {
+                            kind: CASE_STAT,
+                            expr: two.clone(),
+                            has_break: false,
+                            then_block: vec![Box::new(expr_node(AssignmentExpr {
+                                kind: ASSIGNMENT_EXPR,
+                                left: bar.clone(),
+                                right: two.clone()
+                            }))]
+                        })),
+                        Box::new(stat_node(DefaultStatement {
+                            kind: DEFAULT_CASE_STAT,
+                            has_break: false,
+                            then_block: vec![Box::new(expr_node(AssignmentExpr {
+                                kind: ASSIGNMENT_EXPR,
+                                left: bar.clone(),
+                                right: three.clone()
+                            }))]
+                        }))
                     ]
                 })
             )),
@@ -1048,14 +890,12 @@ mod tests {
             Ok((
                 vec![],
                 (
-                    Box::new(stat_node(
-                        VariableDeclaStatement {
-                            kind: VARIABLE_DECLA_STAT,
-                            definator: "let".to_string(),
-                            name: foo.clone(),
-                            init: one.clone()
-                        }
-                    )),
+                    Box::new(stat_node(VariableDeclaStatement {
+                        kind: VARIABLE_DECLA_STAT,
+                        definator: "let".to_string(),
+                        name: foo.clone(),
+                        init: one.clone()
+                    })),
                     one_eqeq_one.clone(),
                     one_plusplus.clone()
                 )
@@ -1078,14 +918,12 @@ mod tests {
                 vec![],
                 stat_node(ForStatement {
                     kind: FOR_STAT,
-                    init: Box::new(stat_node(
-                        VariableDeclaStatement {
-                            kind: VARIABLE_DECLA_STAT,
-                            definator: "let".to_string(),
-                            name: foo.clone(),
-                            init: one.clone()
-                        }
-                    )),
+                    init: Box::new(stat_node(VariableDeclaStatement {
+                        kind: VARIABLE_DECLA_STAT,
+                        definator: "let".to_string(),
+                        name: foo.clone(),
+                        init: one.clone()
+                    })),
                     condition: one_eqeq_one.clone(),
                     step: one_plusplus.clone(),
                     then_block: vec![]

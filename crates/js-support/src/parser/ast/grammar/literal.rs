@@ -1,22 +1,15 @@
 use crate::{
     parser::{
-        ast::{
-            grammar::*, node::literal_node, Literal::*,
-            Node,
-        },
+        ast::{grammar::*, node::literal_node, Literal::*, Node},
         TokenStream,
     },
     syntax_kind::*,
     T,
 };
-use shared::parser_combiner::{
-    between, choice, either, left, seq_by, BoxedParser,
-    Parser,
-};
+use shared::parser_combiner::{between, choice, either, left, seq_by, BoxedParser, Parser};
 
 /// StringLiteral -> STRING
-pub fn string_literal(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn string_literal() -> impl Parser<'static, TokenStream, Node> {
     single_token(STRING).map(|(_, text)| {
         literal_node(StringLiteral {
             kind: STRING,
@@ -27,8 +20,7 @@ pub fn string_literal(
 }
 
 /// NumberLiteral -> NUMBER
-pub fn number_literal(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn number_literal() -> impl Parser<'static, TokenStream, Node> {
     single_token(NUMBER).map(|(_, value)| {
         literal_node(NumberLiteral {
             kind: NUMBER,
@@ -39,14 +31,8 @@ pub fn number_literal(
 }
 
 /// ObjectLiteral -> "{" (Attribute)* "}"
-pub fn object_literal(
-) -> impl Parser<'static, TokenStream, Node> {
-    between(
-        single_token(T!["{"]),
-        attributes(),
-        single_token(T!["}"]),
-    )
-    .map(|attributes| {
+pub fn object_literal() -> impl Parser<'static, TokenStream, Node> {
+    between(single_token(T!["{"]), attributes(), single_token(T!["}"])).map(|attributes| {
         literal_node(ObjectLiteral {
             kind: OBJECT,
             attributes,
@@ -55,46 +41,28 @@ pub fn object_literal(
 }
 
 /// Attribute -> KeyValue ("," KeyValue)*
-pub fn attributes(
-) -> impl Parser<'static, TokenStream, Vec<(String, Box<Node>)>>
-{
+pub fn attributes() -> impl Parser<'static, TokenStream, Vec<(String, Box<Node>)>> {
     seq_by(key_value(), single_token(T![","]))
 }
 
 /// KeyValue -> ID ":" (Literal | Expr)
-pub fn key_value(
-) -> impl Parser<'static, TokenStream, (String, Box<Node>)>
-{
-    left(single_token(ID), single_token(T![":"])).and_then(
-        |(_, key)| {
-            either(literal(), expr()).map(move |value| {
-                (key.to_owned(), Box::new(value))
-            })
-        },
-    )
+pub fn key_value() -> impl Parser<'static, TokenStream, (String, Box<Node>)> {
+    left(single_token(ID), single_token(T![":"])).and_then(|(_, key)| {
+        either(literal(), expr()).map(move |value| (key.to_owned(), Box::new(value)))
+    })
 }
 
 /// ArrayLiteral -> "[" (ArrayItem)* "]"
-pub fn array_literal(
-) -> impl Parser<'static, TokenStream, Node> {
+pub fn array_literal() -> impl Parser<'static, TokenStream, Node> {
     single_token(T!["["])
-        .and_then(|_| {
-            left(array_item(), single_token(T!["]"]))
-        })
-        .map(|items| {
-            literal_node(ArrayLiteral {
-                kind: ARRAY,
-                items,
-            })
-        })
+        .and_then(|_| left(array_item(), single_token(T!["]"])))
+        .map(|items| literal_node(ArrayLiteral { kind: ARRAY, items }))
 }
 
 /// ArrayItem -> (Literal | Expr) ("," Literal | Expr) *
-pub fn array_item(
-) -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
+pub fn array_item() -> impl Parser<'static, TokenStream, Vec<Box<Node>>> {
     seq_by(
-        either(literal(), expr())
-            .map(|item| Box::new(item)),
+        either(literal(), expr()).map(|item| Box::new(item)),
         single_token(T![","]),
     )
 }
@@ -103,8 +71,7 @@ pub fn array_item(
 ///          | NumberLiteral
 ///          | ObjectLiteral
 ///          | ArrayLiteral
-pub fn literal() -> impl Parser<'static, TokenStream, Node>
-{
+pub fn literal() -> impl Parser<'static, TokenStream, Node> {
     choice(vec![
         BoxedParser::new(string_literal()),
         BoxedParser::new(number_literal()),
@@ -113,11 +80,8 @@ pub fn literal() -> impl Parser<'static, TokenStream, Node>
     ])
 }
 
-pub fn id() -> impl Parser<'static, TokenStream, Box<Node>>
-{
-    single_token(ID).map(|(_, name)| {
-        Box::new(literal_node(Id { kind: ID, name }))
-    })
+pub fn id() -> impl Parser<'static, TokenStream, Box<Node>> {
+    single_token(ID).map(|(_, name)| Box::new(literal_node(Id { kind: ID, name })))
 }
 
 #[cfg(test)]
@@ -170,10 +134,7 @@ mod tests {
         let (foo, _) = get_string();
 
         let input = vec![(STRING, "\"foo\"".to_string())];
-        assert_eq!(
-            Ok((vec![], foo.clone())),
-            string_literal().parse(input)
-        )
+        assert_eq!(Ok((vec![], foo.clone())), string_literal().parse(input))
     }
 
     #[test]
@@ -181,10 +142,7 @@ mod tests {
         let (one, _) = get_number();
 
         let input = vec![(NUMBER, "1".to_string())];
-        assert_eq!(
-            Ok((vec![], one.clone())),
-            number_literal().parse(input)
-        )
+        assert_eq!(Ok((vec![], one.clone())), number_literal().parse(input))
     }
 
     #[test]
@@ -203,10 +161,7 @@ mod tests {
                 vec![],
                 literal_node(ObjectLiteral {
                     kind: OBJECT,
-                    attributes: vec![(
-                        "foo".to_string(),
-                        Box::new(bar.clone())
-                    )]
+                    attributes: vec![("foo".to_string(), Box::new(bar.clone()))]
                 })
             )),
             object_literal().parse(input)
@@ -245,25 +200,17 @@ mod tests {
                     kind: OBJECT,
                     attributes: vec![(
                         "foo".to_string(),
-                        Box::new(literal_node(
-                            ObjectLiteral {
-                                kind: OBJECT,
-                                attributes: vec![(
-                                    "bar".to_string(),
-                                    Box::new(literal_node(
-                                        StringLiteral {
-                                            kind: STRING,
-                                            value: "foo"
-                                                .to_string(
-                                                ),
-                                            raw: "\"foo\""
-                                                .to_string(
-                                                )
-                                        }
-                                    ))
-                                )],
-                            }
-                        ))
+                        Box::new(literal_node(ObjectLiteral {
+                            kind: OBJECT,
+                            attributes: vec![(
+                                "bar".to_string(),
+                                Box::new(literal_node(StringLiteral {
+                                    kind: STRING,
+                                    value: "foo".to_string(),
+                                    raw: "\"foo\"".to_string()
+                                }))
+                            )],
+                        }))
                     )],
                 })
             )),
@@ -287,10 +234,7 @@ mod tests {
                 vec![],
                 literal_node(ArrayLiteral {
                     kind: ARRAY,
-                    items: vec![
-                        Box::new(foo.clone()),
-                        Box::new(bar.clone())
-                    ]
+                    items: vec![Box::new(foo.clone()), Box::new(bar.clone())]
                 })
             )),
             array_literal().parse(input)
@@ -327,14 +271,10 @@ mod tests {
                     kind: ARRAY,
                     items: vec![
                         Box::new(foo.clone()),
-                        Box::new(literal_node(
-                            ArrayLiteral {
-                                kind: ARRAY,
-                                items: vec![Box::new(
-                                    bar.clone()
-                                )]
-                            }
-                        ))
+                        Box::new(literal_node(ArrayLiteral {
+                            kind: ARRAY,
+                            items: vec![Box::new(bar.clone())]
+                        }))
                     ]
                 })
             )),
