@@ -1,174 +1,274 @@
 use crate::parser::{Expr, Literal, Node, Stat};
-use crate::traversal::visitor::{ExprVisitor, LiteralVisitor, StatVisitor};
+use crate::syntax_kind::SyntaxKind;
+use crate::traversal::visitor::Visitor;
 use std::cell::RefCell;
 
-#[derive(Default)]
 pub(crate) struct Walker {
-    literal_visitor: Vec<RefCell<Box<dyn LiteralVisitor>>>,
-    expr_visitor: Vec<RefCell<Box<dyn ExprVisitor>>>,
-    stat_visitor: Vec<RefCell<Box<dyn StatVisitor>>>,
+    visitor: Vec<RefCell<Box<dyn Visitor>>>,
 }
 
 impl Walker {
     pub(crate) fn new() -> Self {
-        Walker::default()
+        Walker {
+            visitor: Vec::new(),
+        }
     }
     pub(crate) fn walk(&self, n: &Node) {
         self.visit(n)
     }
-    pub(crate) fn register_literal_visitor<V>(&mut self, lv: V)
-    where
-        V: LiteralVisitor + 'static,
-    {
-        self.literal_visitor.push(RefCell::new(Box::new(lv)));
-    }
-    pub(crate) fn register_expr_visitor<V>(&mut self, ev: V)
-    where
-        V: ExprVisitor + 'static,
-    {
-        self.expr_visitor.push(RefCell::new(Box::new(ev)));
-    }
-    pub(crate) fn register_stat_visitor<V>(&mut self, sv: V)
-    where
-        V: StatVisitor + 'static,
-    {
-        self.stat_visitor.push(RefCell::new(Box::new(sv)));
+    pub(crate) fn register_visitor<V: Visitor + 'static>(&mut self, v: V) {
+        self.visitor.push(RefCell::new(Box::new(v)))
     }
 
     fn visit(&self, n: &Node) {
-        match n {
-            Node::Root { statements, .. } => {
-                statements.iter().for_each(|node| self.visit(node))
-            }
+        self.dispatch_visitor(n);
+    }
+}
 
-            Node::Literal(l) => self.visit_literal(l),
-            Node::Expr(e) => self.visit_expr(e),
-            Node::Stat(s) => self.visit_stat(s),
+/// visit
+impl Walker {
+    fn dispatch_visitor(&self, n: &Node) {
+        match n {
+            Node::Root { statements, .. } => statements.iter().for_each(|node| self.visit(node)),
+
+            Node::Literal(l) => self.dispatch_literal_visitor(l),
+            Node::Expr(e) => self.dispatch_expr_visitor(e),
+            Node::Stat(s) => self.dispatch_stat_visitor(s),
 
             Node::Empty => (),
         }
     }
-    fn visit_literal(&self, n: &Literal) {
-        match n {
-            Literal::Id { name, .. } => self
-                .literal_visitor
+    fn dispatch_literal_visitor(&self, l: &Literal) {
+        match l {
+            Literal::Id { kind, name } => self
+                .visitor
                 .iter()
-                .for_each(|v| v.borrow_mut().visit_id(name)),
+                .for_each(|v| v.borrow_mut().visit_id(kind, name)),
 
-            Literal::StringLiteral { value, .. } => {}
-            Literal::NumberLiteral { value, .. } => {}
-            Literal::ObjectLiteral { attributes, .. } => {}
-            Literal::ArrayLiteral { items, .. } => {}
+            Literal::StringLiteral { kind, value, raw } => self
+                .visitor
+                .iter()
+                .for_each(|v| v.borrow_mut().visit_string_literal(kind, value, raw)),
+
+            Literal::NumberLiteral { kind, value, raw } => self
+                .visitor
+                .iter()
+                .for_each(|v| v.borrow_mut().visit_number_literal(kind, *value, raw)),
+
+            Literal::ObjectLiteral { kind, attributes } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_object_literal(kind, attributes);
+                attributes.iter().for_each(|(_, n)| self.visit(n))
+            }),
+
+            Literal::ArrayLiteral { kind, items } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_array_literal(kind, items);
+                items.iter().for_each(|n| self.visit(n));
+            }),
         }
     }
-    fn visit_expr(&self, n: &Expr) {
-        match n {
+    fn dispatch_expr_visitor(&self, e: &Expr) {
+        match e {
             Expr::UnaryExpr {
-                prefix, op, expr, ..
-            } => {}
+                kind,
+                prefix,
+                op,
+                expr,
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_unary_expr(kind, *prefix, SyntaxKind::to_str(op), expr);
+                self.visit(expr);
+            }),
+
             Expr::BinaryExpr {
-                left, op, right, ..
-            } => {}
+                kind,
+                left,
+                op,
+                right,
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_binary_expr(kind, left, SyntaxKind::to_str(op), right);
+                self.visit(left);
+                self.visit(right);
+            }),
+
             Expr::TernaryExpr {
+                kind,
                 condition,
                 then_expr,
                 else_expr,
-                ..
-            } => {}
-            Expr::AssignmentExpr { left, right, .. } => {}
-            Expr::ValueAccessExpr { path, .. } => {}
-            Expr::FunctionCallExpr { callee, args, .. } => {}
-            Expr::ReturnExpr { expr, .. } => {}
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_ternary_expr(kind, condition, then_expr, else_expr);
+                self.visit(condition);
+                self.visit(then_expr);
+                self.visit(else_expr);
+            }),
+
+            Expr::AssignmentExpr { kind, left, right } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_assignment_expr(kind, left, right);
+                self.visit(left);
+                self.visit(right);
+            }),
+
+            Expr::ValueAccessExpr { kind, path } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_value_access_expr(kind, path);
+                path.iter().for_each(|n| self.visit(n));
+            }),
+
+            Expr::FunctionCallExpr { kind, callee, args } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_function_call_expr(kind, callee, args);
+                self.visit(callee);
+                args.iter().for_each(|n| self.visit(n));
+            }),
+
+            Expr::ReturnExpr { kind, expr } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_return_expr(kind, expr);
+                self.visit(expr);
+            }),
         }
     }
-    fn visit_stat(&self, n: &Stat) {
-        match n {
+    fn dispatch_stat_visitor(&self, s: &Stat) {
+        match s {
             Stat::VariableDeclaStatement {
+                kind,
                 definator,
                 name,
                 init,
-                ..
-            } => {}
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_variable_decla_stat(kind, definator, name, init);
+                self.visit(name);
+                self.visit(init);
+            }),
+
             Stat::FunctionDeclaStatement {
-                name, args, body, ..
-            } => {}
+                kind,
+                name,
+                args,
+                body,
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_function_decla_stat(kind, name, args, body);
+                self.visit(name);
+                args.iter().for_each(|n| self.visit(n));
+                body.iter().for_each(|n| self.visit(n));
+            }),
+
             Stat::IfStatement {
+                kind,
                 expr,
                 then_block,
                 else_block,
-                ..
-            } => {}
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_if_stat(kind, expr, then_block, else_block);
+                self.visit(expr);
+                then_block.iter().for_each(|n| self.visit(n));
+                self.visit(else_block);
+            }),
+
             Stat::SwitchStatement {
-                expr, then_block, ..
-            } => {}
+                kind,
+                expr,
+                then_block,
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_switch_stat(kind, expr, then_block);
+                self.visit(expr);
+                then_block.iter().for_each(|n| self.visit(n));
+            }),
+
             Stat::CaseStatement {
+                kind,
                 expr,
                 has_break,
                 then_block,
-                ..
-            } => {}
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_case_stat(kind, expr, *has_break, then_block);
+                self.visit(expr);
+                then_block.iter().for_each(|n| self.visit(n));
+            }),
+
             Stat::DefaultStatement {
+                kind,
                 has_break,
                 then_block,
-                ..
-            } => {}
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_default_stat(kind, *has_break, then_block);
+                then_block.iter().for_each(|n| self.visit(n));
+            }),
+
             Stat::ForStatement {
+                kind,
                 init,
                 condition,
                 step,
                 then_block,
-                ..
-            } => {}
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut()
+                    .visit_for_stat(kind, init, condition, step, then_block);
+                self.visit(init);
+                self.visit(condition);
+                self.visit(step);
+                then_block.iter().for_each(|n| self.visit(n));
+            }),
+
             Stat::WhileStatement {
+                kind,
                 condition,
                 then_block,
-                ..
-            } => {}
+            } => self.visitor.iter().for_each(|v| {
+                v.borrow_mut().visit_while_stat(kind, condition, then_block);
+                self.visit(condition);
+                then_block.iter().for_each(|n| self.visit(n));
+            }),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::{lex, syntax};
-    use crate::traversal::visitor::LiteralVisitor;
+    use crate::parser::{lex, syntax, Node};
+    use crate::syntax_kind::SyntaxKind;
+    use crate::traversal::visitor::Visitor;
     use crate::traversal::walk::Walker;
 
-    struct V1 {}
-    impl V1 {
-        fn new() -> Self {
-            V1 {}
-        }
-    }
-
-    impl LiteralVisitor for V1 {
-        fn visit_id(&mut self, name: &str) {
-            println!("{name} {name}")
-        }
-    }
-
     struct V {}
-    impl V {
-        fn new() -> Self {
-            V {}
+    impl Visitor for V {
+        fn visit_id(&mut self, _: &SyntaxKind, name: &str) {
+            println!("id {name}")
         }
-    }
-
-    impl LiteralVisitor for V {
-        fn visit_id(&mut self, name: &str) {
-            println!("{name}")
+        fn visit_number_literal(&mut self, _: &SyntaxKind, value: i32, _: &str) {
+            println!("number {value}")
+        }
+        fn visit_variable_decla_stat(
+            &mut self,
+            kind: &SyntaxKind,
+            definator: &str,
+            naem: &Box<Node>,
+            init: &Box<Node>,
+        ) {
+            println!("definator {definator}")
+        }
+        fn visit_ternary_expr(
+            &mut self,
+            kind: &SyntaxKind,
+            condition: &Box<Node>,
+            then_expr: &Box<Node>,
+            else_expr: &Box<Node>,
+        ) {
+            println!("kind {:?}", kind)
         }
     }
 
     #[test]
     fn smoke() {
+        let ast = syntax(lex("const foo = bar == baz ? 1 : 2")).unwrap();
+        // let ast = syntax(lex("foo")).unwrap();
         let mut w = Walker::new();
-        let v = V::new();
-        let v1 = V1::new();
-        w.register_literal_visitor(v);
-        w.register_literal_visitor(v1);
-        let ast = syntax(lex("a")).unwrap();
-        println!("{:?}", ast);
+        w.register_visitor(V {});
+
         w.walk(&ast);
     }
 }

@@ -1,8 +1,6 @@
 #![allow(bad_style, unreachable_pub, dead_code)]
 
-#[derive(
-    Debug, PartialEq, PartialOrd, Eq, Hash, Copy, Clone,
-)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Hash, Copy, Clone)]
 pub struct SyntaxKind(pub u16);
 
 // node
@@ -149,6 +147,7 @@ impl SyntaxKind {
             "." => DOT,
             "<" => LT,
             ">" => GT,
+            "?" => QUESTION,
             _ => return None,
         };
         Some(op)

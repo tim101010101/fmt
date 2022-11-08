@@ -1,4 +1,4 @@
-use crate::syntax_kind::SyntaxKind;
+use crate::syntax_kind::{SyntaxKind, EMPTY, ROOT};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Node {
@@ -138,4 +138,55 @@ pub(crate) fn expr_node(expr: Expr) -> Node {
 }
 pub(crate) fn stat_node(stat: Stat) -> Node {
     Node::Stat(stat)
+}
+
+impl Node {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Node::Empty => EMPTY,
+            Node::Root { .. } => ROOT,
+
+            Node::Literal(l) => l.kind(),
+            Node::Expr(e) => e.kind(),
+            Node::Stat(s) => s.kind(),
+        }
+    }
+}
+impl Literal {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Literal::Id { kind, .. }
+            | Literal::StringLiteral { kind, .. }
+            | Literal::NumberLiteral { kind, .. }
+            | Literal::ObjectLiteral { kind, .. }
+            | Literal::ArrayLiteral { kind, .. } => *kind,
+        }
+    }
+}
+impl Expr {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Expr::UnaryExpr { kind, .. }
+            | Expr::BinaryExpr { kind, .. }
+            | Expr::TernaryExpr { kind, .. }
+            | Expr::AssignmentExpr { kind, .. }
+            | Expr::ValueAccessExpr { kind, .. }
+            | Expr::FunctionCallExpr { kind, .. }
+            | Expr::ReturnExpr { kind, .. } => *kind,
+        }
+    }
+}
+impl Stat {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Stat::VariableDeclaStatement { kind, .. }
+            | Stat::FunctionDeclaStatement { kind, .. }
+            | Stat::IfStatement { kind, .. }
+            | Stat::SwitchStatement { kind, .. }
+            | Stat::CaseStatement { kind, .. }
+            | Stat::DefaultStatement { kind, .. }
+            | Stat::ForStatement { kind, .. }
+            | Stat::WhileStatement { kind, .. } => *kind,
+        }
+    }
 }
