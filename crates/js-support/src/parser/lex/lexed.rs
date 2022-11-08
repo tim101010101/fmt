@@ -1,7 +1,7 @@
-use crate::lex::type_judgument::{
-    is_blank as is_blank_from_str, is_number, is_string,
+use crate::{
+    parser::type_judgument::{is_blank as is_blank_from_str, *},
+    syntax_kind::*,
 };
-use crate::syntax_kind::*;
 use regex::Regex;
 
 pub type LexedToken = (SyntaxKind, String);
@@ -53,10 +53,7 @@ impl DFA {
                 state = 0;
             }
 
-            if prev_state == 2
-                || end_state.contains(&prev_state)
-                    && state != prev_state
-            {
+            if prev_state == 2 || end_state.contains(&prev_state) && state != prev_state {
                 self.push_token(&text_cache, skip_blank);
                 text_cache.clear();
                 text_cache.push_str(&c.to_string());
@@ -75,26 +72,22 @@ impl DFA {
         }
 
         let text = text.to_string();
-        let token: (SyntaxKind, String) =
-            if let Some(token_kind) =
-                SyntaxKind::from_operator(&text)
-            {
-                (token_kind, text)
-            } else if let Some(token_kind) =
-                SyntaxKind::from_keyword(&text)
-            {
-                (token_kind, text)
+        let token: (SyntaxKind, String) = if let Some(token_kind) = SyntaxKind::from_operator(&text)
+        {
+            (token_kind, text)
+        } else if let Some(token_kind) = SyntaxKind::from_keyword(&text) {
+            (token_kind, text)
+        } else {
+            if is_blank_from_str(&text) {
+                (WHITESPACE, text)
+            } else if is_number(&text) {
+                (NUMBER, text)
+            } else if is_string(&text) {
+                (STRING, text)
             } else {
-                if is_blank_from_str(&text) {
-                    (WHITESPACE, text)
-                } else if is_number(&text) {
-                    (NUMBER, text)
-                } else if is_string(&text) {
-                    (STRING, text)
-                } else {
-                    (ID, text)
-                }
-            };
+                (ID, text)
+            }
+        };
         self.token_stream.push(token);
     }
 }
@@ -108,19 +101,14 @@ fn is_blank(c: char) -> bool {
 
 fn is_operator(c: char) -> bool {
     match c {
-        ';' | ',' | '(' | ')' | '[' | ']' | '{' | '}'
-        | '<' | '>' | '?' | ':' | '$' | '=' | '!' | '~'
-        | '&' | '|' | '+' | '*' | '/' | '^' | '%' | '.' => {
-            true
-        }
+        ';' | ',' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>' | '?' | ':' | '$' | '=' | '!'
+        | '~' | '&' | '|' | '+' | '*' | '/' | '^' | '%' | '.' => true,
         _ => false,
     }
 }
 
 fn is_strip(c: char) -> bool {
-    Regex::new(r"[a-zA-Z0-9]")
-        .unwrap()
-        .is_match(&c.to_string())
+    Regex::new(r"[a-zA-Z0-9]").unwrap().is_match(&c.to_string())
 }
 
 fn is_block_start(c: char) -> bool {
@@ -238,6 +226,15 @@ mod tests {
         let code = "const a = \"Hello World\";".to_string();
         let mut dfa = DFA::new(code);
         dfa.lexed(true);
-        println!("{:?}", dfa.token_stream)
+        assert_eq!(
+            vec![
+                (DEFINATOR, "const".to_string()),
+                (ID, "a".to_string()),
+                (EQ, "=".to_string()),
+                (STRING, "\"Hello World\"".to_string()),
+                (SEMI, ";".to_string())
+            ],
+            dfa.token_stream
+        )
     }
 }

@@ -19,11 +19,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "js_codegen"
-version = "0.1.0"
-
-[[package]]
-name = "js_parser"
+name = "js-support"
 version = "0.1.0"
 dependencies = [
  "regex",

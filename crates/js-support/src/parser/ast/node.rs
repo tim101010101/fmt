@@ -1,19 +1,4 @@
-use crate::syntax_kind::SyntaxKind;
-
-#[derive(Debug, PartialOrd, PartialEq, Clone)]
-pub struct BoxedNode(Box<Node>);
-
-impl BoxedNode {
-    pub fn new(node: Node) -> Self {
-        BoxedNode(Box::new(node))
-    }
-}
-
-impl From<Node> for BoxedNode {
-    fn from(n: Node) -> Self {
-        BoxedNode::new(n)
-    }
-}
+use crate::syntax_kind::{SyntaxKind, EMPTY, ROOT};
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Node {
@@ -24,7 +9,13 @@ pub enum Node {
         statements: Vec<Box<Node>>,
     },
 
-    // literal
+    Literal(Literal),
+    Expr(Expr),
+    Stat(Stat),
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Literal {
     Id {
         kind: SyntaxKind,
         name: String,
@@ -47,8 +38,10 @@ pub enum Node {
         kind: SyntaxKind,
         items: Vec<Box<Node>>,
     },
+}
 
-    // expression
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Expr {
     UnaryExpr {
         kind: SyntaxKind,
         prefix: bool,
@@ -85,8 +78,10 @@ pub enum Node {
         kind: SyntaxKind,
         expr: Box<Node>,
     },
+}
 
-    // statement
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Stat {
     VariableDeclaStatement {
         kind: SyntaxKind,
         definator: String,
@@ -135,4 +130,63 @@ pub enum Node {
     },
 }
 
+pub(crate) fn literal_node(literal: Literal) -> Node {
+    Node::Literal(literal)
+}
+pub(crate) fn expr_node(expr: Expr) -> Node {
+    Node::Expr(expr)
+}
+pub(crate) fn stat_node(stat: Stat) -> Node {
+    Node::Stat(stat)
+}
 
+impl Node {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Node::Empty => EMPTY,
+            Node::Root { .. } => ROOT,
+
+            Node::Literal(l) => l.kind(),
+            Node::Expr(e) => e.kind(),
+            Node::Stat(s) => s.kind(),
+        }
+    }
+}
+impl Literal {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Literal::Id { kind, .. }
+            | Literal::StringLiteral { kind, .. }
+            | Literal::NumberLiteral { kind, .. }
+            | Literal::ObjectLiteral { kind, .. }
+            | Literal::ArrayLiteral { kind, .. } => *kind,
+        }
+    }
+}
+impl Expr {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Expr::UnaryExpr { kind, .. }
+            | Expr::BinaryExpr { kind, .. }
+            | Expr::TernaryExpr { kind, .. }
+            | Expr::AssignmentExpr { kind, .. }
+            | Expr::ValueAccessExpr { kind, .. }
+            | Expr::FunctionCallExpr { kind, .. }
+            | Expr::ReturnExpr { kind, .. } => *kind,
+        }
+    }
+}
+impl Stat {
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        match self {
+            Stat::VariableDeclaStatement { kind, .. }
+            | Stat::FunctionDeclaStatement { kind, .. }
+            | Stat::IfStatement { kind, .. }
+            | Stat::SwitchStatement { kind, .. }
+            | Stat::CaseStatement { kind, .. }
+            | Stat::DefaultStatement { kind, .. }
+            | Stat::ForStatement { kind, .. }
+            | Stat::WhileStatement { kind, .. } => *kind,
+        }
+    }
+}
