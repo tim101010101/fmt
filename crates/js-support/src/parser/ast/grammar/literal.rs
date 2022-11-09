@@ -48,7 +48,7 @@ pub fn attributes() -> impl Parser<'static, TokenStream, Vec<(String, Box<Node>)
 /// KeyValue -> ID ":" (Literal | Expr)
 pub fn key_value() -> impl Parser<'static, TokenStream, (String, Box<Node>)> {
     left(single_token(ID), single_token(T![":"])).and_then(|(_, key)| {
-        either(literal(), expr()).map(move |value| (key.to_owned(), Box::new(value)))
+        either(expr(), literal()).map(move |value| (key.to_owned(), Box::new(value)))
     })
 }
 

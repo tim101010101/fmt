@@ -190,3 +190,87 @@ impl Stat {
         }
     }
 }
+
+// pub(crate) fn walk<V: Visitor>(visitor: &mut V, n: &Node) {
+//     match n {
+//         Node::Empty => {}
+//         Node::Root { statements, .. } => statements.iter().for_each(|s| walk(visitor, s)),
+//         Node::Literal(l) => walk_literal(visitor, l),
+//         Node::Expr(e) => walk_expr(visitor, e),
+//         Node::Stat(s) => walk_stat(visitor, s),
+//     }
+// }
+// pub(crate) fn walk_literal<V: Visitor>(visitor: &mut V, l: &Literal) {
+//     match l {
+//         Literal::Id { name, .. } => visitor.visit_id(name),
+//         Literal::StringLiteral { value, .. } => visitor.visit_string(value),
+//         Literal::NumberLiteral { raw, .. } => visitor.visit_number(raw),
+//         Literal::ObjectLiteral { attributes, .. } => visitor.visit_object(attributes),
+//         Literal::ArrayLiteral { items, .. } => visitor.visit_array(items),
+//     }
+// }
+// pub(crate) fn walk_expr<V: Visitor>(visitor: &mut V, e: &Expr) {
+//     match e {
+//         Expr::UnaryExpr {
+//             prefix, op, expr, ..
+//         } => visitor.visit_unary(*prefix, SyntaxKind::to_str(op), expr),
+//         Expr::BinaryExpr {
+//             left, op, right, ..
+//         } => visitor.visit_binary(left, SyntaxKind::to_str(op), right),
+//         Expr::TernaryExpr {
+//             condition,
+//             then_expr,
+//             else_expr,
+//             ..
+//         } => visitor.visit_ternary(condition, then_expr, else_expr),
+//         Expr::AssignmentExpr { left, right, .. } => visitor.visit_assignment(left, right),
+//         Expr::ValueAccessExpr { path, .. } => visitor.visit_value_access(path),
+//         Expr::FunctionCallExpr { callee, args, .. } => visitor.visit_function_call(callee, args),
+//         Expr::ReturnExpr { expr, .. } => visitor.visit_return(expr),
+//     }
+// }
+// pub(crate) fn walk_stat<V: Visitor>(visitor: &mut V, s: &Stat) {
+//     match s {
+//         Stat::VariableDeclaStatement {
+//             definator,
+//             name,
+//             init,
+//             ..
+//         } => visitor.visit_var_decla(definator, name, init),
+//         Stat::FunctionDeclaStatement {
+//             name, args, body, ..
+//         } => visitor.visit_fun_decla(name, args, body),
+//         Stat::IfStatement {
+//             expr,
+//             then_block,
+//             else_block,
+//             ..
+//         } => visitor.visit_if(expr, then_block, else_block),
+//         Stat::SwitchStatement {
+//             expr, then_block, ..
+//         } => visitor.visit_switch(expr, then_block),
+//         Stat::CaseStatement {
+//             expr,
+//             has_break,
+//             then_block,
+//             ..
+//         } => visitor.visit_case(expr, *has_break, then_block),
+//         Stat::DefaultStatement {
+//             has_break,
+//             then_block,
+//             ..
+//         } => visitor.visit_default(*has_break, then_block),
+//         Stat::ForStatement {
+//             init,
+//             condition,
+//             step,
+//             then_block,
+//             ..
+//         } => visitor.visit_for(init, condition, step, then_block),
+//         Stat::WhileStatement {
+//             condition,
+//             then_block,
+//             ..
+//         } => visitor.visit_while(condition, then_block),
+//     }
+// }
