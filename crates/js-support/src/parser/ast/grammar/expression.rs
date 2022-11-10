@@ -14,21 +14,9 @@ pub fn boxed_expr_node() -> impl Parser<'static, TokenStream, Box<Node>> {
     expr().map(|n| Box::new(n))
 }
 
-/// Expr -> ReturnExpr | AssignmentExpr
+/// Expr -> AssignmentExpr
 pub fn expr() -> impl Parser<'static, TokenStream, Node> {
-    either(return_expr(), assignment_expr())
-}
-
-/// ReturnExpr -> RETURN AssignmentExpr
-pub fn return_expr() -> impl Parser<'static, TokenStream, Node> {
-    single_token(RETURN_KW).and_then(|_| {
-        assignment_expr().map(|expr| {
-            expr_node(ReturnExpr {
-                kind: RETURN_EXPR,
-                expr: Box::new(expr),
-            })
-        })
-    })
+    assignment_expr()
 }
 
 /// AssignmentExpr -> TernaryExpr ("=" TernaryExpr)*
@@ -588,45 +576,6 @@ mod tests {
                 })
             )),
             expr().parse(input)
-        );
-    }
-
-    #[test]
-    fn test_return_expr() {
-        let (one, two, _, _) = get_number();
-
-        let input = vec![(RETURN_KW, "return".to_string()), (NUMBER, "1".to_string())];
-        assert_eq!(
-            Ok((
-                vec![],
-                expr_node(ReturnExpr {
-                    kind: RETURN_EXPR,
-                    expr: one.clone()
-                })
-            )),
-            return_expr().parse(input)
-        );
-
-        let input = vec![
-            (RETURN_KW, "return".to_string()),
-            (NUMBER, "1".to_string()),
-            (PLUS, "+".to_string()),
-            (NUMBER, "2".to_string()),
-        ];
-        assert_eq!(
-            Ok((
-                vec![],
-                expr_node(ReturnExpr {
-                    kind: RETURN_EXPR,
-                    expr: Box::new(expr_node(BinaryExpr {
-                        kind: BINARY_EXPR,
-                        left: one.clone(),
-                        op: PLUS,
-                        right: two.clone()
-                    }))
-                })
-            )),
-            return_expr().parse(input)
         );
     }
 
