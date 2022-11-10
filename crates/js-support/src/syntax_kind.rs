@@ -1,8 +1,6 @@
 #![allow(bad_style, unreachable_pub, dead_code)]
 
-#[derive(
-    Debug, PartialEq, PartialOrd, Eq, Hash, Copy, Clone,
-)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Hash, Copy, Clone)]
 pub struct SyntaxKind(pub u16);
 
 // node
@@ -17,7 +15,6 @@ pub const SEQUENCE_EXPR: SyntaxKind = SyntaxKind(103);
 pub const VALUE_ACCESS_EXPR: SyntaxKind = SyntaxKind(104);
 pub const FUNCTION_CALL_EXPR: SyntaxKind = SyntaxKind(105);
 pub const ASSIGNMENT_EXPR: SyntaxKind = SyntaxKind(106);
-pub const RETURN_EXPR: SyntaxKind = SyntaxKind(107);
 
 // statement
 pub const VARIABLE_DECLA_STAT: SyntaxKind = SyntaxKind(500);
@@ -28,6 +25,8 @@ pub const CASE_STAT: SyntaxKind = SyntaxKind(504);
 pub const DEFAULT_CASE_STAT: SyntaxKind = SyntaxKind(505);
 pub const FOR_STAT: SyntaxKind = SyntaxKind(506);
 pub const WHILE_STAT: SyntaxKind = SyntaxKind(507);
+pub const BREAK_STAT: SyntaxKind = SyntaxKind(508);
+pub const RETURN_STAT: SyntaxKind = SyntaxKind(509);
 
 // token
 pub const IDENT: SyntaxKind = SyntaxKind(10000);
@@ -149,38 +148,51 @@ impl SyntaxKind {
             "." => DOT,
             "<" => LT,
             ">" => GT,
+            "?" => QUESTION,
             _ => return None,
         };
         Some(op)
     }
     pub fn to_str(&self) -> &str {
         match self {
-            &ROOT => "ROOT",
+            &SEMI => ";",
+            &COLON => ":",
+            &COMMA => ",",
+            &EQ => "=",
+            &OPEN_PAREN => "(",
+            &CLOSE_PAREN => ")",
+            &OPEN_BRACKET => "[",
+            &CLOSE_BRACKET => "]",
+            &OPEN_BRACE => "{",
+            &CLOSE_BRACE => "}",
+            &DOT => ".",
+            &LT => "<",
+            &GT => ">",
+            &BANG => "!",
+            &MINUS => "-",
+            &PLUS => "+",
+            &STAR => "*",
+            &SLASH => "/",
+            &AMP => "&",
+            &PIPE => "|",
+            &CARET => "^",
+            &TILDE => "~",
+            &QUESTION => "?",
+            &EQEQ => "==",
+            &EQEQEQ => "===",
+            &LTEQ => "<=",
+            &GTEQ => ">=",
+            &BANGEQ => "!=",
+            &BANGEQEQ => "!==",
+            &PLUSPLUS => "++",
+            &MINUSMINUS => "--",
+            &LTLT => "<<",
+            &GTGT => ">>",
+            &GTGTGT => ">>>",
+            &TYPE_OF_KW => "type of",
+            &INSTANCE_OF_KW => "instance of",
 
-            &WHITESPACE => "WHITESPACE",
-
-            &DEFINATOR => "DEFINATOR",
-            &ID => "ID",
-            &NUMBER => "NUMBER",
-            &STRING => "STRING",
-
-            &OPEN_PAREN => "OPEN_PAREN",
-            &CLOSE_PAREN => "CLOSE_PAREN",
-            &OPEN_BRACKET => "OPEN_BRACKET",
-            &CLOSE_BRACKET => "CLOSE_BRACKET",
-            &OPEN_BRACE => "OPEN_BRACE",
-            &CLOSE_BRACE => "CLOSE_BRACE",
-            &PLUS => "PLUS",
-            &MINUS => "MINUS",
-            &STAR => "STAR",
-            &SLASH => "SLASH",
-            &EQ => "EQ",
-            &SEMI => "SEMI",
-            &COMMA => "COMMA",
-
-            &FUNCTION_KW => "FUNCTION_KW",
-
-            _ => return "Unknow",
+            _ => "Unknow",
         }
     }
 }
@@ -216,7 +228,7 @@ macro_rules! T {
 
 #[cfg(test)]
 mod tests {
-    use crate::syntax_kind::{FUNCTION_KW, SEMI};
+    use crate::syntax_kind::*;
 
     #[test]
     fn test_macro() {

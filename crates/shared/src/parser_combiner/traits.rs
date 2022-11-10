@@ -1,22 +1,13 @@
 use crate::parser_combiner::boxed_parser::BoxedParser;
-use crate::parser_combiner::combiner::{
-    and_then, either, judge, map,
-};
+use crate::parser_combiner::combiner::{and_then, either, judge, map};
 
 /// Result((Input, Output), Input)
-pub type ParserResult<'input, Input, Output> =
-    Result<(Input, Output), Input>;
+pub type ParserResult<'input, Input, Output> = Result<(Input, Output), Input>;
 
 pub trait Parser<'input, Input, Output> {
-    fn parse(
-        &self,
-        input: Input,
-    ) -> ParserResult<'input, Input, Output>;
+    fn parse(&self, input: Input) -> ParserResult<'input, Input, Output>;
 
-    fn map<MapFn, NewOutput>(
-        self,
-        map_fn: MapFn,
-    ) -> BoxedParser<'input, Input, NewOutput>
+    fn map<MapFn, NewOutput>(self, map_fn: MapFn) -> BoxedParser<'input, Input, NewOutput>
     where
         Self: Sized + 'input,
         Input: 'input,
@@ -27,10 +18,7 @@ pub trait Parser<'input, Input, Output> {
         BoxedParser::new(map(self, map_fn))
     }
 
-    fn judge<JudgeFn>(
-        self,
-        judge_fn: JudgeFn,
-    ) -> BoxedParser<'input, Input, Output>
+    fn judge<JudgeFn>(self, judge_fn: JudgeFn) -> BoxedParser<'input, Input, Output>
     where
         Self: Sized + 'input,
         Input: Clone + 'input,
@@ -49,17 +37,13 @@ pub trait Parser<'input, Input, Output> {
         Input: 'input,
         Output: 'input,
         NextOutput: 'input,
-        NextParser:
-            Parser<'input, Input, NextOutput> + 'input,
+        NextParser: Parser<'input, Input, NextOutput> + 'input,
         NextFn: Fn(Output) -> NextParser + 'input,
     {
         BoxedParser::new(and_then(self, next_fn))
     }
 
-    fn or<OtherParser>(
-        self,
-        other_parser: OtherParser,
-    ) -> BoxedParser<'input, Input, Output>
+    fn or<OtherParser>(self, other_parser: OtherParser) -> BoxedParser<'input, Input, Output>
     where
         Self: Sized + 'input,
         Input: Clone + 'input,

@@ -1,9 +1,10 @@
 mod lexed;
-mod type_judgument;
+pub(crate) mod type_judgument;
 
-pub use lexed::{LexedToken, DFA};
+use lexed::DFA;
 
-pub type TokenStream = Vec<LexedToken>;
+pub(crate) use lexed::LexedToken;
+pub(crate) type TokenStream = Vec<LexedToken>;
 
 pub fn lex(code: &str) -> TokenStream {
     let mut dfa = DFA::new(code.to_string());
