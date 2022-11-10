@@ -74,10 +74,6 @@ pub enum Expr {
         callee: Box<Node>,
         args: Vec<Box<Node>>,
     },
-    ReturnExpr {
-        kind: SyntaxKind,
-        expr: Box<Node>,
-    },
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -98,7 +94,7 @@ pub enum Stat {
         kind: SyntaxKind,
         expr: Box<Node>,
         then_block: Vec<Box<Node>>,
-        else_block: Box<Node>, // IfStat | Block
+        else_node: Box<Node>,
     },
     SwitchStatement {
         kind: SyntaxKind,
@@ -108,13 +104,14 @@ pub enum Stat {
     CaseStatement {
         kind: SyntaxKind,
         expr: Box<Node>,
-        has_break: bool,
         then_block: Vec<Box<Node>>,
     },
     DefaultStatement {
         kind: SyntaxKind,
-        has_break: bool,
         then_block: Vec<Box<Node>>,
+    },
+    BreakStatement {
+        kind: SyntaxKind,
     },
     ForStatement {
         kind: SyntaxKind,
@@ -127,6 +124,10 @@ pub enum Stat {
         kind: SyntaxKind,
         condition: Box<Node>,
         then_block: Vec<Box<Node>>,
+    },
+    ReturnStat {
+        kind: SyntaxKind,
+        expr: Box<Node>,
     },
 }
 
@@ -171,8 +172,7 @@ impl Expr {
             | Expr::TernaryExpr { kind, .. }
             | Expr::AssignmentExpr { kind, .. }
             | Expr::ValueAccessExpr { kind, .. }
-            | Expr::FunctionCallExpr { kind, .. }
-            | Expr::ReturnExpr { kind, .. } => *kind,
+            | Expr::FunctionCallExpr { kind, .. } => *kind,
         }
     }
 }
@@ -186,7 +186,9 @@ impl Stat {
             | Stat::CaseStatement { kind, .. }
             | Stat::DefaultStatement { kind, .. }
             | Stat::ForStatement { kind, .. }
-            | Stat::WhileStatement { kind, .. } => *kind,
+            | Stat::BreakStatement { kind }
+            | Stat::WhileStatement { kind, .. }
+            | Stat::ReturnStat { kind, .. } => *kind,
         }
     }
 }
