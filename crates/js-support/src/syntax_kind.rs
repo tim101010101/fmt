@@ -15,7 +15,6 @@ pub const SEQUENCE_EXPR: SyntaxKind = SyntaxKind(103);
 pub const VALUE_ACCESS_EXPR: SyntaxKind = SyntaxKind(104);
 pub const FUNCTION_CALL_EXPR: SyntaxKind = SyntaxKind(105);
 pub const ASSIGNMENT_EXPR: SyntaxKind = SyntaxKind(106);
-pub const RETURN_EXPR: SyntaxKind = SyntaxKind(107);
 
 // statement
 pub const VARIABLE_DECLA_STAT: SyntaxKind = SyntaxKind(500);
@@ -26,6 +25,8 @@ pub const CASE_STAT: SyntaxKind = SyntaxKind(504);
 pub const DEFAULT_CASE_STAT: SyntaxKind = SyntaxKind(505);
 pub const FOR_STAT: SyntaxKind = SyntaxKind(506);
 pub const WHILE_STAT: SyntaxKind = SyntaxKind(507);
+pub const BREAK_STAT: SyntaxKind = SyntaxKind(508);
+pub const RETURN_STAT: SyntaxKind = SyntaxKind(509);
 
 // token
 pub const IDENT: SyntaxKind = SyntaxKind(10000);
