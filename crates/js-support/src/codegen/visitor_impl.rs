@@ -148,11 +148,11 @@ impl Visitor for Generator {
 
         match else_node.deref() {
             Node::Stat(Stat::IfStatement {
-                expr,
-                then_block,
-                else_node,
-                ..
-            }) => self.visit_else_if(expr, then_block, else_node),
+                           expr,
+                           then_block,
+                           else_node,
+                           ..
+                       }) => self.visit_else_if(expr, then_block, else_node),
             _ => {}
         }
     }
@@ -170,11 +170,11 @@ impl Visitor for Generator {
 
                 match else_node.deref() {
                     Node::Stat(Stat::IfStatement {
-                        expr,
-                        then_block,
-                        else_node,
-                        ..
-                    }) => self.visit_else_if(expr, then_block, else_node),
+                                   expr,
+                                   then_block,
+                                   else_node,
+                                   ..
+                               }) => self.visit_else_if(expr, then_block, else_node),
                     _ => {}
                 }
             }
@@ -245,6 +245,7 @@ impl Visitor for Generator {
 mod tests {
     use crate::codegen::generator::Generator;
     use crate::parser::{lex, syntax};
+
     #[test]
     fn smoke() {
         let input = r#"const a=1;function foo(bar,baz){const a=1;}if(a==1){const a=1;}else if(b==2){const b=1;}else if(c==2){const c=1;}else{const d=1;}switch(a){case 1:const b=1;break;case 2:const c=1;break;default:const d=1;break;}for(let i=0;i<1;i++){let a = 1;}while(a){const a=1;}"#;
@@ -287,11 +288,10 @@ while (a) {
 
     #[test]
     fn smoke1() {
-        let input = r#"const a=1;function foo(bar,baz){const a=1;}if(a==1){const a=1;}else if(b==2){const b=1;}else if(c==2){const c=1;}else{const d=1;}switch(a){case 1:const b=1;break;case 2:const c=1;break;default:const d=1;break;}for(let i=0;i<1;i++){let a = 1;}while(a){const a=1;}function foo() {const number=1;const string='Hello World';const object={foo:'bar'};const array=[foo,bar,baz];const a=1++;const b=1+2;const c=1==2?3:4;const d=(a=b);const e=foo.bar.baz;const f=foo.bar.baz(a,b,c);return a;}"#;
+        let input = r#"const a=1;function foo(bar,baz){const a=1;if(a==1){const a=1;}else if(b==2){const b=1;}}"#;
         let ast = syntax(lex(input)).unwrap();
         let mut g = Generator::new();
         let output = g.gen(&ast);
         println!("{}", output);
-        // assert_eq!(output, expect);
     }
 }
